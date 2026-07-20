@@ -81,4 +81,9 @@ than missing extensions.
     Reviewed: YYYY-MM-DD.
 -->
 
-_(none yet)_
+- `pi-token-speed/` — Real-time tokens-per-second + TTFT in the status bar,
+  with `/tps` settings menu and a sliding-window algorithm. Status bar only —
+  no `tool_call` interception, no prompt modification. Reads/writes
+  `~/.pi/agent/settings.json` (the `tokenSpeed` key) for configuration.
+  Source: <https://github.com/gsanhueza/pi-token-speed> (commit `75e0aca`,
+  MIT). Reviewed: 2026-07-20.

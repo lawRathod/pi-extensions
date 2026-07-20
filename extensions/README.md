@@ -81,12 +81,12 @@ than missing extensions.
     Reviewed: YYYY-MM-DD.
 -->
 
-- `pi-token-speed/` — Real-time tokens-per-second + TTFT in the status bar,
-  with `/tps` settings menu and a sliding-window algorithm. Status bar only —
-  no `tool_call` interception, no prompt modification. Reads/writes
-  `~/.pi/agent/settings.json` (the `tokenSpeed` key) for configuration.
-  Source: <https://github.com/gsanhueza/pi-token-speed> (commit `75e0aca`,
-  MIT). Reviewed: 2026-07-20.
+- `pi-tps-meter/` — Live tokens-per-second meter for the status bar with a
+  sub-cell gauge during streaming and a 12-message sparkline + avg/μ/p95
+  after each message. Status bar only — no `tool_call` interception, no
+  prompt modification. No file or network I/O. Source:
+  <https://github.com/vskrch/pi-tps-meter> (commit `e445924`, MIT).
+  Reviewed: 2026-07-20.
 - `custom-message/` — Replaces the "Working..." text with a random line from
   `~/.pi/agent/custom-message.txt` during each agent turn, with optional
   rotation. No bundled content, no API — fully driven by the user file. If

@@ -2,22 +2,24 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export interface FunFactsConfig {
+export interface CustomMessageConfig {
 	enabled: boolean;
 	rotateSeconds: number;
-	useApi: boolean;
+	filePath: string;
 }
 
-const DEFAULTS: FunFactsConfig = {
+const DEFAULT_FILE_PATH = join(getAgentDir(), "custom-message.txt");
+
+const DEFAULTS: CustomMessageConfig = {
 	enabled: true,
 	rotateSeconds: 10,
-	useApi: false,
+	filePath: DEFAULT_FILE_PATH,
 };
 
-const SETTINGS_KEY = "funFacts";
+const SETTINGS_KEY = "customMessage";
 const SETTINGS_PATH = join(getAgentDir(), "settings.json");
 
-let cached: FunFactsConfig | null = null;
+let cached: CustomMessageConfig | null = null;
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
 	return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -27,7 +29,7 @@ function clamp(value: number, min: number, max: number): number {
 	return Math.max(min, Math.min(max, value));
 }
 
-function validate(raw: unknown): FunFactsConfig {
+function validate(raw: unknown): CustomMessageConfig {
 	if (!isPlainObject(raw)) return { ...DEFAULTS };
 
 	const enabled =
@@ -38,10 +40,12 @@ function validate(raw: unknown): FunFactsConfig {
 			? clamp(Math.floor(raw.rotateSeconds), 0, 300)
 			: DEFAULTS.rotateSeconds;
 
-	const useApi =
-		typeof raw.useApi === "boolean" ? raw.useApi : DEFAULTS.useApi;
+	const filePath =
+		typeof raw.filePath === "string" && raw.filePath.trim().length > 0
+			? raw.filePath.trim()
+			: DEFAULTS.filePath;
 
-	return { enabled, rotateSeconds, useApi };
+	return { enabled, rotateSeconds, filePath };
 }
 
 async function readAll(): Promise<Record<string, unknown>> {
@@ -58,7 +62,7 @@ async function writeAll(data: Record<string, unknown>): Promise<void> {
 	await writeFile(SETTINGS_PATH, JSON.stringify(data, null, 2), "utf-8");
 }
 
-export async function loadConfig(): Promise<FunFactsConfig> {
+export async function loadConfig(): Promise<CustomMessageConfig> {
 	if (cached) return cached;
 	const all = await readAll();
 	cached = validate(all[SETTINGS_KEY]);
@@ -66,8 +70,8 @@ export async function loadConfig(): Promise<FunFactsConfig> {
 }
 
 export async function setConfig(
-	partial: Partial<FunFactsConfig>,
-): Promise<FunFactsConfig> {
+	partial: Partial<CustomMessageConfig>,
+): Promise<CustomMessageConfig> {
 	const current = await loadConfig();
 	const next = validate({ ...current, ...partial });
 	cached = next;

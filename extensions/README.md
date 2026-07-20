@@ -87,8 +87,8 @@ than missing extensions.
   `~/.pi/agent/settings.json` (the `tokenSpeed` key) for configuration.
   Source: <https://github.com/gsanhueza/pi-token-speed> (commit `75e0aca`,
   MIT). Reviewed: 2026-07-20.
-- `fun-facts/` — Replaces the "Working..." text with a random fun fact during
-  each agent turn, with optional rotation. Bundled list of ~50 facts, plus
-  optional user file (`~/.pi/agent/fun-facts.txt`) and optional API source
-  (`uselessfacts.jsph.pl`, no auth, 3s timeout, falls back to local on
-  failure). `/facts` command toggles. Self-written. Reviewed: 2026-07-20.
+- `custom-message/` — Replaces the "Working..." text with a random line from
+  `~/.pi/agent/custom-message.txt` during each agent turn, with optional
+  rotation. No bundled content, no API — fully driven by the user file. If
+  the file is missing/empty the extension is a no-op. `/custom` command
+  toggles. Self-written. Reviewed: 2026-07-20.

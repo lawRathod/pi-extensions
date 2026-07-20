@@ -92,3 +92,8 @@ than missing extensions.
   rotation. No bundled content, no API — fully driven by the user file. If
   the file is missing/empty the extension is a no-op. `/custom` command
   toggles. Self-written. Reviewed: 2026-07-20.
+- `pi-grid-footer/` — Replaces the built-in footer with a 2×2 layout: pwd
+  (top-left), model (top-right), `tps` extension status (bottom-left), token
+  stats (bottom-right). Other extension statuses fall through to a 3rd line.
+  No `tool_call` interception, no prompt modification, no file or network
+  I/O. Self-written. Reviewed: 2026-07-20.

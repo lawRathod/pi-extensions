@@ -6,14 +6,17 @@ message next to it changes.
 
 ## What it does
 
-- On each LLM turn, the working message becomes a random line from
+- At the start of each agent run (each time you press enter), the
+  working message becomes a random line from
   `~/.pi/agent/custom-message.txt`.
-- A new line is picked every 10s during long turns (configurable,
-  `0` = one per turn).
-- On `turn_end` / `agent_settled`, the default "Working..." text is
-  restored.
-- No two consecutive lines are the same within a turn (wraps after
-  exhausting the file).
+- If the run lasts longer than `rotateSeconds` (default 20s), a new
+  line is picked every `rotateSeconds` for the rest of the run. Set
+  `0` to lock to one line per run.
+- On `agent_settled` (pi fully idle, after any auto-retries, compactions,
+  or queued follow-ups), the default "Working..." text is restored.
+- No two consecutive lines are the same within a run (wraps after
+  exhausting the file). The used-set carries across runs within the
+  same session, so you keep seeing fresh lines for the whole session.
 - If the file is missing or empty, the extension is a no-op — pi's
   default "Working..." text stays.
 
@@ -57,7 +60,7 @@ Add a `customMessage` block to `~/.pi/agent/settings.json`:
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `enabled` | boolean | `true` | Master switch. |
-| `rotateSeconds` | number (0–300) | `10` | How often to pick a new line during a turn. `0` = one line per turn. |
+| `rotateSeconds` | number (0–300) | `20` | How often to pick a new line while an agent run is in progress. `0` = one line per run. |
 | `filePath` | string | `~/.pi/agent/custom-message.txt` | Path to the text file. Supports `~`. |
 
 Invalid values are silently corrected to defaults.

@@ -17,7 +17,7 @@ const state: State = {
 	lines: [],
 	used: new Set(),
 	timer: null,
-	config: { enabled: true, rotateSeconds: 10, filePath: "" },
+	config: { enabled: true, rotateSeconds: 20, filePath: "" },
 };
 
 /**
@@ -81,7 +81,7 @@ function applyLine(ctx: ExtensionContext): void {
 	ctx.ui.setWorkingMessage(line);
 }
 
-function startTurn(ctx: ExtensionContext): void {
+function startRun(ctx: ExtensionContext): void {
 	if (!ctx.hasUI || !state.config.enabled) return;
 	if (state.lines.length === 0) return;
 
@@ -93,7 +93,7 @@ function startTurn(ctx: ExtensionContext): void {
 	}
 }
 
-function endTurn(ctx: ExtensionContext): void {
+function endRun(ctx: ExtensionContext): void {
 	clearTimer();
 	if (ctx.hasUI) {
 		ctx.ui.setWorkingMessage();
@@ -108,17 +108,17 @@ export default function (pi: ExtensionAPI) {
 		state.used.clear();
 	});
 
-	pi.on("turn_start", (_event, ctx) => {
-		startTurn(ctx);
-	});
-
-	pi.on("turn_end", (_event, ctx) => {
-		endTurn(ctx);
+	pi.on("agent_start", (_event, ctx) => {
+		// Boundaries are at the agent-run level: one message at the start of
+		// each user prompt's run, optionally rotating every rotateSeconds
+		// while the run is still going. agent_settled fires when pi is fully
+		// idle (after any auto-retries, auto-compaction retries, or queued
+		// follow-ups), which is the right time to restore the default.
+		startRun(ctx);
 	});
 
 	pi.on("agent_settled", (_event, ctx) => {
-		// Safety net so the timer never leaks past the end of an agent run.
-		endTurn(ctx);
+		endRun(ctx);
 	});
 
 	pi.on("session_shutdown", () => {

@@ -12,7 +12,7 @@ const DEFAULT_FILE_PATH = join(getAgentDir(), "custom-message.txt");
 
 const DEFAULTS: CustomMessageConfig = {
 	enabled: true,
-	rotateSeconds: 10,
+	rotateSeconds: 20,
 	filePath: DEFAULT_FILE_PATH,
 };
 

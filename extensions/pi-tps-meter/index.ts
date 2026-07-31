@@ -7,6 +7,7 @@
  *
  * Features:
  *   - Live sub-cell gauge (1/8-cell resolution) that fills as you stream
+ *   - Min-max normalized sparkline (▁▁ sub-cell gauge (1/8-cell resolution) that fills as you stream
  *   - Min-max normalized sparkline (▁▂▃▄▅▆▇█) so the trend's shape is readable
  *   - Color-coded by speed (green fast / yellow mid / red slow)
  *   - Animated spinner during streaming
@@ -247,14 +248,7 @@ function gauge(tps: number, theme: any): string {
 }
 
 // --- Spinner ---
-
-const SPIN = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-let spinI = 0;
-function spin(): string {
-  const s = SPIN[spinI];
-  spinI = (spinI + 1) % SPIN.length;
-  return s;
-}
+// REMOVED: The spinner animation has been removed per request.
 
 function speedColor(tps: number, text: string, theme: any): string {
   if (tps >= FAST) return theme.fg("success", text);
@@ -273,11 +267,11 @@ function renderLive(theme: any): string {
 
   // Live, animated, sub-cell gauge that fills as generation speeds up — this is
   // the moving "graph" during streaming (the historical sparkline is static).
-  const s = theme.fg("accent", spin());
+  // Removed spinner animation per request.
   const g = gauge(tps, theme);
   const num = speedColor(tps, `${fmt(tps)}`, theme);
   const unit = theme.fg("dim", "tps");
-  return `${s} ${g} ${num} ${unit}`;
+  return `${g} ${num} ${unit}`;
 }
 
 function renderFinal(theme: any): string {
@@ -329,7 +323,7 @@ export default function tpsMeter(pi: ExtensionAPI): void {
     streamChars = 0;
     streamTokens = 0;
     streaming = true;
-    spinI = 0;
+    // Removed spinner initialization
     startTick(ctx, ctx.ui.theme);
   });
 
@@ -399,7 +393,7 @@ export default function tpsMeter(pi: ExtensionAPI): void {
     sparkCache = "";
     sparkDirty = true;
     sparkTheme = null;
-    spinI = 0;
+    // Removed spinner reset
     ctx.ui.setStatus("tps", undefined);
   });
 }

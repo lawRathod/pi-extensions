@@ -75,10 +75,21 @@ function clearTimer(): void {
 }
 
 function applyLine(ctx: ExtensionContext): void {
-	if (!ctx.hasUI) return;
+	try {
+		if (!ctx.hasUI) return;
+	} catch {
+		// ctx became stale after a reload / session replacement.
+		// The captured ctx is unusable; stop the timer so it can't fire again.
+		clearTimer();
+		return;
+	}
 	const line = pickLine();
 	if (line === null) return;
-	ctx.ui.setWorkingMessage(line);
+	try {
+		ctx.ui.setWorkingMessage(line);
+	} catch {
+		clearTimer();
+	}
 }
 
 function startRun(ctx: ExtensionContext): void {
@@ -89,14 +100,36 @@ function startRun(ctx: ExtensionContext): void {
 
 	const intervalMs = state.config.rotateSeconds * 1000;
 	if (intervalMs > 0) {
-		state.timer = setInterval(() => applyLine(ctx), intervalMs);
+		state.timer = setInterval(
+			() => guardCtx(ctx, () => applyLine(ctx)),
+			intervalMs,
+		);
 	}
 }
 
 function endRun(ctx: ExtensionContext): void {
 	clearTimer();
-	if (ctx.hasUI) {
-		ctx.ui.setWorkingMessage();
+	try {
+		if (ctx.hasUI) {
+			ctx.ui.setWorkingMessage();
+		}
+	} catch {
+		// ctx is stale (reload / session replacement); nothing to clean up.
+	}
+}
+
+/**
+ * Guard wrapper for any callback that touches a possibly-stale ctx
+ * (reload / newSession / fork / switchSession all invalidate captured
+ * contexts). Throws inside mean the ctx is dead — we treat that as a no-op
+ * and unwind any timer so it can't fire again on the stale ctx.
+ */
+function guardCtx(ctx: ExtensionContext, fn: () => void): void {
+	try {
+		fn();
+	} catch {
+		clearTimer();
+		void ctx;
 	}
 }
 

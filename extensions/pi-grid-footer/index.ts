@@ -60,8 +60,10 @@ export default function gridFooter(pi: ExtensionAPI): void {
 	});
 
 	pi.on("session_start", async (_event, ctx) => {
-		// Seed from current model if a model_select already fired before us.
+		// Neither model_select nor thinking_level_select fire at startup, so seed
+		// both from the live state.
 		modelSupportsReasoning = !!((ctx.model as { reasoning?: unknown } | undefined)?.reasoning);
+		thinkingLevel = pi.getThinkingLevel();
 
 		ctx.ui.setFooter((tui, theme, footerData) => {
 			const unsubBranch = footerData.onBranchChange(() => tui.requestRender());

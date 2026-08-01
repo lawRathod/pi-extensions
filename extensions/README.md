@@ -97,3 +97,7 @@ than missing extensions.
   stats (bottom-right). Other extension statuses fall through to a 3rd line.
   No `tool_call` interception, no prompt modification, no file or network
   I/O. Self-written. Reviewed: 2026-07-20.
+- `tool-permissions/` — Per-tool allow/ask/deny rules from project
+  `.pi/permission.json`, enforced via `tool_call` interception (blocks or
+  prompts; never grants). Reads one small JSON per tool call — no network
+  I/O, no other file access. Self-written. Reviewed: 2026-08-01.

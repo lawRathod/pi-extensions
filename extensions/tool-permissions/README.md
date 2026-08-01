@@ -46,6 +46,10 @@ is a no-op.
 - Invalid rule values are treated as `deny` (fail safe) and reported once
   per session; invalid JSON is reported once and leaves all tools allowed.
 - Works for custom tools too: use the tool's registered name.
+- When the herdr integration (`herdr-agent-state.ts`) is installed, an `ask`
+  prompt emits `herdr:blocked` on pi's event bus so herdr reports the pane as
+  blocked and fires its needs-input toast/sound. Without the integration the
+  emit is a no-op.
 - `.pi/permission.json` is honored even in untrusted projects. The
   extension can only restrict tools (`deny`/`ask`) — it never grants more
   access than pi already has.

@@ -18,6 +18,12 @@
  *   "deny"  — block the tool call
  *   "*"     — catch-all rule for tools without an explicit entry
  *
+ * While an "ask" prompt is on screen, the extension emits a
+ * `herdr:blocked` event on pi's shared event bus so the herdr integration
+ * (extensions/herdr-agent-state.ts, when installed) can report pi as
+ * "blocked" and herdr can fire its needs-input toast/sound notification.
+ * Without listeners the emit is a no-op.
+ *
  * The file is re-read on every tool call, so edits take effect immediately
  * (no /reload). A missing file makes this extension a no-op.
  */
@@ -115,6 +121,16 @@ function summarize(input: object): string {
 		: json;
 }
 
+/**
+ * Tell the herdr integration (when loaded) whether pi is waiting on a
+ * permission prompt. It translates this into herdr's "blocked" agent state,
+ * which drives herdr's needs-input toast + request sound. No-op when no
+ * extension listens on the event bus.
+ */
+function reportBlocked(pi: ExtensionAPI, active: boolean, label?: string): void {
+	pi.events.emit("herdr:blocked", { active, label });
+}
+
 export default function (pi: ExtensionAPI) {
 	pi.on("session_start", () => {
 		grantedForSession.clear();
@@ -150,10 +166,18 @@ export default function (pi: ExtensionAPI) {
 				reason: `Tool "${event.toolName}" is set to "ask" in ${CONFIG_DIR_NAME}/permission.json but no UI is available; blocked.`,
 			};
 		}
-		const choice = await ctx.ui.select(
-			`Allow "${event.toolName}"?\n\n${summary}`,
-			[...ASK_OPTIONS],
-		);
+
+		const choice = await (async () => {
+			reportBlocked(pi, true, summary);
+			try {
+				return await ctx.ui.select(
+					`Allow "${event.toolName}"?\n\n${summary}`,
+					[...ASK_OPTIONS],
+				);
+			} finally {
+				reportBlocked(pi, false);
+			}
+		})();
 		if (choice === "Yes (this session)") {
 			grantedForSession.add(event.toolName);
 			return undefined;

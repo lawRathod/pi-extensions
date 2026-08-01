@@ -99,5 +99,7 @@ than missing extensions.
   I/O. Self-written. Reviewed: 2026-07-20.
 - `tool-permissions/` — Per-tool allow/ask/deny rules from project
   `.pi/permission.json`, enforced via `tool_call` interception (blocks or
-  prompts; never grants). Reads one small JSON per tool call — no network
-  I/O, no other file access. Self-written. Reviewed: 2026-08-01.
+  prompts; never grants). While an ask prompt is open, emits `herdr:blocked`
+  so the herdr integration reports pi as blocked (needs-input
+  toast/sound). Reads one small JSON per tool call — no network I/O, no
+  other file access. Self-written. Reviewed: 2026-08-01.

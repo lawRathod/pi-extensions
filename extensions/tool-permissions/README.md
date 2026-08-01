@@ -21,7 +21,8 @@ allowed, gated behind a confirmation prompt, or denied outright.
 - `ask` — prompt before the tool runs. The prompt offers three choices:
   **Yes** (allow once), **Yes (this session)** (remember the approval for
   the rest of the session, no more prompts for this tool), and **No**
-  (block the call; the model sees a "rejected" reason).
+  (block the call AND interrupt the turn, so the model stops instead of
+  retrying via another tool — you can re-prompt).
 - `deny` — block the call; the model sees a "denied" reason.
 - `"*"` — catch-all rule for tools without an explicit entry. Handy for
   deny-by-default, e.g. `{ "*": "deny", "read": "allow", "bash": "ask" }`.
@@ -37,6 +38,9 @@ is a no-op.
   forks, or reloads. They are not persisted.
 - `ask` in non-interactive modes (`-p`, `--mode json`) has no UI to prompt
   with, so the call is blocked with an explanatory reason.
+- Choosing **No** (or dismissing with Esc) aborts the current turn in
+  addition to blocking the call — the model won't try the same action via
+  a different tool, and you can prompt again with a new instruction.
 - `ask` prompts show the command (`bash`) or path (`read`/`write`/`edit`/
   ...) when available, otherwise a truncated view of the arguments.
 - Invalid rule values are treated as `deny` (fail safe) and reported once

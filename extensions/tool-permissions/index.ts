@@ -12,7 +12,9 @@
  * Each tool maps to one of:
  *   "allow" — run without prompting (default for unlisted tools)
  *   "ask"   — confirm with the user before running; the prompt offers
- *             "Yes (this session)" to stop asking for the rest of the session
+ *             "Yes (this session)" to stop asking for the rest of the session.
+ *             "No" (or Esc) blocks the call AND interrupts the turn, so the
+ *             model stops instead of retrying via another tool (e.g. bash)
  *   "deny"  — block the tool call
  *   "*"     — catch-all rule for tools without an explicit entry
  *
@@ -159,7 +161,12 @@ export default function (pi: ExtensionAPI) {
 		if (choice === "Yes") {
 			return undefined;
 		}
-		// "No", dismissed (Esc), or no UI — block.
+		// "No" or dismissed (Esc) — block the call and interrupt the whole turn.
+		// Without the abort the model would just retry via another tool (e.g.
+		// write via bash); "No" should mean "stop so I can prompt again".
+		// (The agent loop checks the abort signal right after the handler
+		// returns, so the tool never runs and the run settles as aborted.)
+		ctx.abort();
 		return { block: true, reason: `Tool "${event.toolName}" rejected by user.` };
 	});
 }

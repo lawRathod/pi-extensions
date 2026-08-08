@@ -101,5 +101,16 @@ than missing extensions.
   `.pi/permission.json`, enforced via `tool_call` interception (blocks or
   prompts; never grants). While an ask prompt is open, emits `herdr:blocked`
   so the herdr integration reports pi as blocked (needs-input
-  toast/sound). Reads one small JSON per tool call — no network I/O, no
-  other file access. Self-written. Reviewed: 2026-08-01.
+  toast/sound); also emits `pi-warp:blocked` so the pi-warp extension can
+  raise a Warp notification for every block (deny, no-UI ask, ask prompt
+  on screen). Reads one small JSON per tool call — no network I/O, no
+  other file access. Self-written. Reviewed: 2026-08-04.
+- `pi-warp/` — Real-time pi notifications in the Warp terminal via OSC 777
+  (session start, prompt submitted, agent done, tool complete,
+  permission-request when `tool-permissions` blocks a tool) plus an
+  optional animated braille spinner in the terminal title. Writes only OSC
+  sequences to `/dev/tty` and one key in `~/.pi/agent/settings.json` (via
+  `/pi-warp-settings`). No network, no `child_process`, no `tool_call`
+  interception (listens for the `pi-warp:blocked` bus event instead).
+  Source: <https://github.com/TeahouseHQ/pi-warp> (commit `d2790d4`, v1.0.1,
+  MIT). Reviewed: 2026-08-04.

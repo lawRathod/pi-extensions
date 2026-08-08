@@ -24,6 +24,12 @@
  * "blocked" and herdr can fire its needs-input toast/sound notification.
  * Without listeners the emit is a no-op.
  *
+ * Every permission decision that blocks pi — deny rule, "ask" with no UI,
+ * or an ask prompt on screen — also emits `pi-warp:blocked` so the pi-warp
+ * extension (when installed) can raise a Warp notification. Payload:
+ * { active, toolName, input, reason }. Without listeners the emit is a
+ * no-op.
+ *
  * The file is re-read on every tool call, so edits take effect immediately
  * (no /reload). A missing file makes this extension a no-op.
  */
@@ -131,6 +137,20 @@ function reportBlocked(pi: ExtensionAPI, active: boolean, label?: string): void 
 	pi.events.emit("herdr:blocked", { active, label });
 }
 
+/**
+ * Tell pi-warp (when loaded) that a permission decision is blocking pi so
+ * it can surface a Warp notification. No-op when pi-warp isn't installed.
+ */
+function reportWarpBlocked(
+	pi: ExtensionAPI,
+	active: boolean,
+	toolName: string,
+	input: object,
+	reason?: string,
+): void {
+	pi.events.emit("pi-warp:blocked", { active, toolName, input, reason });
+}
+
 export default function (pi: ExtensionAPI) {
 	pi.on("session_start", () => {
 		grantedForSession.clear();
@@ -152,6 +172,13 @@ export default function (pi: ExtensionAPI) {
 		}
 
 		if (rule === "deny") {
+			reportWarpBlocked(
+				pi,
+				true,
+				event.toolName,
+				event.input,
+				`denied by ${CONFIG_DIR_NAME}/permission.json`,
+			);
 			return {
 				block: true,
 				reason: `Tool "${event.toolName}" is denied by ${CONFIG_DIR_NAME}/permission.json`,
@@ -161,6 +188,13 @@ export default function (pi: ExtensionAPI) {
 		// rule === "ask"
 		const summary = summarize(event.input);
 		if (!ctx.hasUI) {
+			reportWarpBlocked(
+				pi,
+				true,
+				event.toolName,
+				event.input,
+				`"ask" but no UI available; blocked`,
+			);
 			return {
 				block: true,
 				reason: `Tool "${event.toolName}" is set to "ask" in ${CONFIG_DIR_NAME}/permission.json but no UI is available; blocked.`,
@@ -169,6 +203,7 @@ export default function (pi: ExtensionAPI) {
 
 		const choice = await (async () => {
 			reportBlocked(pi, true, summary);
+			reportWarpBlocked(pi, true, event.toolName, event.input);
 			try {
 				return await ctx.ui.select(
 					`Allow "${event.toolName}"?\n\n${summary}`,
@@ -176,6 +211,7 @@ export default function (pi: ExtensionAPI) {
 				);
 			} finally {
 				reportBlocked(pi, false);
+				reportWarpBlocked(pi, false, event.toolName, event.input);
 			}
 		})();
 		if (choice === "Yes (this session)") {

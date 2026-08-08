@@ -1,0 +1,7 @@
+{
+  "name": "pi-warp",
+  "version": "1.0.1",
+  "description": "Pi <> Warp. Real-time pi notifications in the Warp terminal.",
+  "license": "MIT",
+  "type": "module"
+}

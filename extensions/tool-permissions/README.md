@@ -50,6 +50,11 @@ is a no-op.
   prompt emits `herdr:blocked` on pi's event bus so herdr reports the pane as
   blocked and fires its needs-input toast/sound. Without the integration the
   emit is a no-op.
+- When the pi-warp extension is installed, every block also emits
+  `pi-warp:blocked` (`{ active, toolName, input, reason }`) so Warp raises a
+  `permission_request` notification: while an `ask` prompt is on screen
+  (`active: true` until it closes) and once for each hard block (`deny` rule,
+  `ask` with no UI). Without pi-warp the emit is a no-op.
 - `.pi/permission.json` is honored even in untrusted projects. The
   extension can only restrict tools (`deny`/`ask`) — it never grants more
   access than pi already has.

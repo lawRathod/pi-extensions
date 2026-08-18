@@ -121,3 +121,11 @@ than missing extensions.
   `~/.pi/agent/commandcode-models.json` (model cache). Source:
   <https://github.com/patlux/pi-commandcode-provider> (commit `c4d25d1`,
   v0.5.1, MIT). Reviewed: 2026-08-18.
+- `pi-guardrails/` — Safety checks for pi: file protection policies
+  (`guardrails`), outside-workspace path access gate (`path-access`),
+  dangerous-command gate (`permission-gate`), and Herdr adapter
+  (`herdr`). Four extensions in one package; config via
+  `/guardrails:settings` / `/guardrails:onboarding`. Runtime deps
+  `@aliou/pi-utils-settings` + `@aliou/sh`; only `execFile("fd")` for
+  glob expansion. Source: <https://github.com/aliou/pi-guardrails>
+  (commit `a3da058`, v0.17.0, MIT). Reviewed: 2026-08-18.

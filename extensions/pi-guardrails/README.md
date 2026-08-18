@@ -42,11 +42,19 @@ pi-guardrails/
 # from this repo:
 cp -r extensions/pi-guardrails ~/.pi/agent/extensions/pi-guardrails
 cd ~/.pi/agent/extensions/pi-guardrails
-npm install        # or pnpm install — installs @aliou/pi-utils-settings + @aliou/sh
+npm install --omit=dev --ignore-scripts   # runtime only: @aliou/pi-utils-settings + @aliou/sh
 # then in pi:
 /reload
 /guardrails:onboarding   # first-run setup
 ```
+
+> **Why `npm audit` shows 5 highs if you run plain `npm install`:** upstream's
+> `package.json` ships `devDependencies` (not needed at runtime) that pull an
+> older `pi-coding-agent@0.79.6` with old `brace-expansion`/`protobufjs`/
+> `undici`/`ws`. Those are never loaded at runtime — pi provides those peers
+> itself. `npm install --omit=dev` (what `pi install` does) has
+> **0 vulnerabilities** (`npm audit` → `found 0`). `pnpm install --prod`
+> equivalent. Don't `npm audit fix --force` — it would try to bump pi itself.
 
 Runtime imports are only the pi-provided peers
 (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`) plus the two

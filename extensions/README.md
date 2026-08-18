@@ -129,3 +129,11 @@ than missing extensions.
   `@aliou/pi-utils-settings` + `@aliou/sh`; only `execFile("fd")` for
   glob expansion. Source: <https://github.com/aliou/pi-guardrails>
   (commit `a3da058`, v0.17.0, MIT). Reviewed: 2026-08-18.
+- `rpiv-todo/` — Live todo overlay for the model: `todo` tool,
+  `/todos` command, and persistent panel above the editor surviving
+  `/reload` and compaction. Session-isolated, dependency-aware
+  (`blockedBy` cycle-checked). No network, no disk writes (state
+  replayed from branch). Source:
+  <https://github.com/juicesharp/rpiv-mono/tree/main/packages/rpiv-todo>
+  (commit `c6e15db`, v2.6.2, MIT, monorepo path
+  `packages/rpiv-todo` → `rpiv-todo/`). Reviewed: 2026-08-19.

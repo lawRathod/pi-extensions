@@ -19,8 +19,7 @@ Thumbs.db
 *.swp
 *.swo
 
-# Pi session / runtime junk that may end up nearby
-.pi/
+
 *.log
 .env
 .env.local

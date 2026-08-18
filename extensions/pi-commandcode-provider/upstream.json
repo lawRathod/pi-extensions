@@ -1,0 +1,7 @@
+{
+  "repo": "https://github.com/patlux/pi-commandcode-provider.git",
+  "branch": "main",
+  "commit": "c4d25d1",
+  "files": ["index.ts", "src/"],
+  "description": "Custom provider for Command Code API (commandcode.ai)"
+}

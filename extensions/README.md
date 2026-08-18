@@ -114,3 +114,10 @@ than missing extensions.
   interception (listens for the `pi-warp:blocked` bus event instead).
   Source: <https://github.com/TeahouseHQ/pi-warp> (commit `d2790d4`, v1.0.1,
   MIT). Reviewed: 2026-08-04.
+- `pi-commandcode-provider/` — Custom provider for the Command Code API
+  (commandcode.ai). Registers models, handles OAuth authentication,
+  forwards requests to Command Code's generate endpoint. Network calls
+  scoped to `api.commandcode.ai`. File writes scoped to
+  `~/.pi/agent/commandcode-models.json` (model cache). Source:
+  <https://github.com/patlux/pi-commandcode-provider> (commit `c4d25d1`,
+  v0.5.1, MIT). Reviewed: 2026-08-18.

@@ -145,14 +145,6 @@ than missing extensions.
   writes, no `child_process`. Source:
   <https://github.com/edlsh/pi-ask-user> (commit `2de7e14`, v0.14.0,
   MIT). Reviewed: 2026-08-21.
-- `single-click-expand/` — Click to expand one tool cell; `ctrl+o` still
-  expands all. Wraps all 7 built-in tools (`read`/`bash`/`edit`/`write`/
-  `grep`/`find`/`ls`) to compute `effectiveExpanded = global || singleId ===
-  toolCallId` (accordion). Left click (SGR 1000h+1006h, enabled in
-  regular mode; fullscreen already has it) toggles one cell, `alt+o`
-  toggles last cell, `alt+shift+o` clears, `/single-expand` lists/toggles
-  by index. No network, no filesystem beyond in-memory per-session state.
-  Self-written. Reviewed: 2026-08-21.
 - `pi-web-access/` — Web search, URL fetching, GitHub repo cloning, PDF extraction,
   YouTube video understanding, and local video analysis. Tools:
   `web_search`, `fetch_content`, `get_search_content`, `source_check`;

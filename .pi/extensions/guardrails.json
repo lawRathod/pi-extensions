@@ -1,0 +1,16 @@
+{
+  "$schema": "https://unpkg.com/@aliou/pi-guardrails@0.17.0/schema.json",
+  "pathAccess": {
+    "allowedPaths": [],
+    "mode": "allow"
+  },
+  "version": "0.17.0",
+  "features": {
+    "permissionGate": false,
+    "pathAccess": false,
+    "policies": false
+  },
+  "permissionGate": {
+    "requireConfirmation": false
+  }
+}

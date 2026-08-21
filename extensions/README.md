@@ -153,6 +153,24 @@ than missing extensions.
   toggles last cell, `alt+shift+o` clears, `/single-expand` lists/toggles
   by index. No network, no filesystem beyond in-memory per-session state.
   Self-written. Reviewed: 2026-08-21.
+- `pi-web-access/` — Web search, URL fetching, GitHub repo cloning, PDF extraction,
+  YouTube video understanding, and local video analysis. Tools:
+  `web_search`, `fetch_content`, `get_search_content`, `source_check`;
+  commands: `/websearch`, `/curator`, `/search`, `/google-account`.
+  Search providers: OpenAI, Brave, Parallel, TinyFish, Search1API,
+  Searchinfinity, Querit, Tavily, Firecrawl, Jina, SERPdive, Kagi, Bocha,
+  Ollama, AnySearch, Valyu, xAI, Bright Data, SerpBase, Serper, SearXNG,
+  DuckDuckGo, Exa, Perplexity, Gemini. SSRF-gated fetch with domain
+  policy, private-range blocking, chunked 5 MB streaming, and optional
+  browser-cookie auth (opt-in). File writes scoped to
+  `~/.pi/web-search.json` + `web-search-cache/` (0700/0600) and the
+  configured GitHub clone/cache dirs. Network calls limited to the
+  configured search/fetch provider endpoints and (when enabled) Chrome
+  cookie decryption + Gemini/video APIs. Deps: `@mozilla/readability`,
+  `linkedom`, `p-limit`, `turndown`, `typebox`, `unpdf`, `undici`
+  (no postinstall). No `eval`/`vm`, no obfuscation, no prompt
+  interception. Source: <https://github.com/nicobailon/pi-web-access>
+  (commit `1584928`, v0.24.0, MIT). Reviewed: 2026-08-21.
 - `pi-mcp-adapter/` — MCP adapter for Pi: single `mcp` proxy tool
   (~200 tokens) replaces verbose per-server definitions, lazy server
   start with metadata caching, on-demand browser OAuth (`/mcp`,

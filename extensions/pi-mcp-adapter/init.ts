@@ -284,14 +284,33 @@ export async function initializeMcp(
         return mode === "keep-alive" || mode === "eager";
       });
 
-  if (ui && startupServers.length > 0) {
-    const status = formatMcpStatus(state.config, `connecting to ${startupServers.length} servers...`);
-    ui.setStatus("mcp", status);
+  // Footer status is the only live signal until init resolves and index.ts
+  // assigns the runtime state, so update it immediately and then as each
+  // startup server finishes connecting. This is what shows the user that MCP
+  // is working while the (now non-blocking) startup runs in the background.
+  // Publish to the shared status bus too, so consumers such as pi-grid-footer
+  // can repaint their footer on every change (ui.setStatus alone is
+  // fire-and-forget and custom footers do not repaint on it).
+  const publishStartupStatus = (message: string): void => {
+    if (ui) {
+      const status = formatMcpStatus(state.config, message);
+      if (status) ui.setStatus("mcp", status);
+    }
+    publishMcpStatusSnapshot(state);
+  };
+
+  if (startupServers.length > 0) {
+    publishStartupStatus(`connecting to ${startupServers.length} servers...`);
   }
 
+  let connectedSoFar = 0;
   const results = await parallelLimit(startupServers, 10, async ([name, definition]) => {
     try {
       const connection = await manager.connect(name, definition, runtimeSignal);
+      if (connection.status === "connected") {
+        connectedSoFar += 1;
+        publishStartupStatus(`connecting... ${connectedSoFar}/${startupServers.length} connected`);
+      }
       if (connection.status === "needs-auth") {
         return { name, definition, connection: null, error: `OAuth authentication required. Run /mcp-auth ${name}.` };
       }

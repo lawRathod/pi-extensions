@@ -67,6 +67,39 @@ grep -rn "Buffer\.from\|atob\|btoa\|base64" src/ index.ts
 grep -rn "require(\|import(" src/ index.ts
 ```
 
+### 2b. Footer / Status Integration Check
+
+Determine whether the extension renders anything in the TUI footer/status
+area. If it does, pi-grid-footer (our custom footer) must be updated to
+incorporate it — otherwise the new status is invisible (setStatus is
+fire-and-forget and custom footers don't repaint on it).
+
+```bash
+# Footer/status usage
+grep -rn "setStatus\|setFooter\|setWidget\|setTitle\|requestRender\|getExtensionStatuses" src/ index.ts
+
+# Shared event bus publications (extensions that need live repaints)
+grep -rn "pi\.events\|events\.emit\|status/v1" src/ index.ts
+```
+
+If the extension sets any footer status:
+
+- [ ] Identify the status key(s) it uses (e.g. `setStatus("tps", ...)`).
+- [ ] Decide placement in `extensions/pi-grid-footer/index.ts`:
+  - Prominent/always-on status → give it its own cell (like MCP did).
+  - Occasional status → it already appears on row 3 (the "other statuses"
+    line) via `getExtensionStatuses()`; verify the key isn't filtered out.
+- [ ] Check if it needs **live repaints while pi is idle** (e.g. connecting
+  progress, timers). If so, subscribe to its event bus (if it publishes one)
+  or otherwise trigger `tui.requestRender()` — `setStatus` alone won't
+  repaint a custom footer.
+- [ ] Update `extensions/pi-grid-footer/README.md` (layout diagram + caveats).
+- [ ] Sync the updated footer to `~/.pi/agent/extensions/pi-grid-footer/`.
+- [ ] Note the footer integration in the commit message.
+
+> Only applies to extensions that touch the footer. Skip if the grep comes
+> back empty.
+
 ### 3. Copy to extensions/
 
 Determine the extension name (kebab-case, folder form preferred):

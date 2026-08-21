@@ -4,13 +4,15 @@ Replaces pi's built-in footer with a 2×2 layout:
 
 ```
 <cwd (branch) [• name]>            <provider model-id [• thinking]>
-<tps-meter status>                 <↑ ↓ R W CH $ ctx%>
+<mcp status>                       <↑ ↓ R W CH $ ctx%>
 [other extension statuses]
 ```
 
-The bottom-left cell is reserved for the `tps` extension status (set by
-`pi-tps-meter`); it stays blank when no stream is active. All other statuses
-go on an optional 3rd line, sorted, with `tps` filtered out so it isn't
+The bottom-left cell is reserved for the MCP status (set by `pi-mcp-adapter`
+via `ctx.ui.setStatus("mcp", ...)`). It shows live connection progress
+(`🔌 MCP: connecting…`, `N/M connected`, then `N enabled (N connected)`),
+repainting on every update. All other statuses (including the `tps` meter)
+go on an optional 3rd line, sorted, with `mcp` filtered out so it isn't
 shown twice.
 
 ## Layout details
@@ -20,19 +22,26 @@ shown twice.
 - **Top-right** — current `model.id`, with a `(<provider>) ` prefix only
   when more than one provider is available, and a ` • <thinking>` suffix
   (or ` • thinking off`) when the model supports reasoning.
-- **Bottom-left** — raw themed text from the `tps` extension status, or
-  blank when the meter is idle. Whatever the meter renders is what shows.
+- **Bottom-left** — MCP status from `pi-mcp-adapter`, kept raw so it keeps
+  its own accent color. Blank when the adapter sets no status (e.g. no MCP
+  servers configured).
 - **Bottom-right** — `↑in ↓out R read W write CH hit% $cost ctx%/window`.
   The `ctx%` segment is red above 90%, yellow above 70%, plain otherwise.
 
+The MCP cell repaints live by subscribing to pi-mcp-adapter's status bus
+(`pi-mcp-adapter/status/v1`); each snapshot triggers `tui.requestRender()`.
+This matters because `ctx.ui.setStatus` is fire-and-forget — custom footers
+do not repaint on it on their own, so without the bus subscription the MCP
+cell would stay stale until the next unrelated repaint.
+
 Truncation falls back: right cell first (no ellipsis), then left cell with
-`...`. Both cells are dimmed by default, except the `tps` cell which keeps
-its own colors (e.g. the accent dot from the meter).
+`...`. Both cells are dimmed by default, except the MCP cell which keeps
+its own colors.
 
 ## Differences from the built-in footer
 
 - Layout is fixed 2×2 instead of 1 row of stats + a status row.
-- The `tps` status is promoted to its own cell.
+- The `mcp` status is promoted to its own cell.
 - No `xp` experimental indicator, no `(auto)` / `(sub)` suffixes (kept
   simpler; easy to add back).
 - No dim wrapping around the colored context segment — `theme.fg("dim", …)`
@@ -54,7 +63,8 @@ temporarily, rename the folder out of `~/.pi/agent/extensions/` and reload.
 
 ## Caveats
 
-- The `tps` key is hardcoded. If `pi-tps-meter` ever renames its status
-  key, update `index.ts` to match (search for `statuses.get("tps")`).
+- The `mcp` status key and the `pi-mcp-adapter/status/v1` channel are
+  hardcoded. If the adapter ever renames them, update `index.ts` to match
+  (search for `MCP_STATUS_EVENT` and `statuses.get("mcp")`).
 - This extension always sets the footer in `session_start`. There's no
   toggle command — enable/disable by installing/uninstalling.

@@ -4,11 +4,17 @@
  * Replaces the built-in footer with a 2x2 layout:
  *
  *   <pwd (branch) [• name]>                    <provider model [• thinking]>
- *   <extension statuses except "tps">          <stats>
+ *   <mcp status>                               <stats>
  *
- * The "tps" extension status (set by pi-tps-meter) is reserved for the
- * bottom-left cell. Any other extension statuses (set via ctx.ui.setStatus)
- * are collected on a 3rd line, minus "tps" so they aren't shown twice.
+ * The MCP status (set by pi-mcp-adapter via ctx.ui.setStatus("mcp", ...)) gets
+ * its own bottom-left cell, so it is prominent and repaints live while servers
+ * connect. The extension subscribes to the pi-mcp-adapter status bus
+ * ("pi-mcp-adapter/status/v1") and calls tui.requestRender() on every
+ * snapshot, because ui.setStatus is fire-and-forget and custom footers do not
+ * repaint on it automatically.
+ *
+ * Any other extension statuses (set via ctx.ui.setStatus) are collected on a
+ * 3rd line.
  *
  * Self-written. No file or network I/O.
  */
@@ -16,6 +22,10 @@
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
+
+// Channel published by pi-mcp-adapter's mcp-status.ts. Kept inline (not
+// imported) so this extension has zero cross-extension runtime dependencies.
+const MCP_STATUS_EVENT = "pi-mcp-adapter/status/v1";
 
 // Mirror of the default footer's compact token formatter. Kept inline so this
 // extension has zero runtime dependencies.
@@ -65,11 +75,28 @@ export default function gridFooter(pi: ExtensionAPI): void {
 		modelSupportsReasoning = !!((ctx.model as { reasoning?: unknown } | undefined)?.reasoning);
 		thinkingLevel = pi.getThinkingLevel();
 
+		// Repaint the footer whenever the MCP adapter publishes a status
+		// snapshot (connecting..., N/M connected, N enabled, ...). This is what
+		// makes the MCP cell update live even though ui.setStatus is
+		// fire-and-forget. Subscribe once per session; the bus emits the latest
+		// snapshot whenever the adapter re-renders, so a single listener is
+		// enough. pi.events.on returns an unsubscribe function.
+		const onMcpStatus = () => {
+			activeRequestRender?.();
+		};
+		const unsubscribeMcp = pi.events.on(MCP_STATUS_EVENT, onMcpStatus);
+		let activeRequestRender: (() => void) | undefined;
+
 		ctx.ui.setFooter((tui, theme, footerData) => {
 			const unsubBranch = footerData.onBranchChange(() => tui.requestRender());
+			activeRequestRender = () => tui.requestRender();
 
 			return {
-				dispose: unsubBranch,
+				dispose: () => {
+					unsubBranch();
+					unsubscribeMcp();
+					activeRequestRender = undefined;
+				},
 				invalidate() {},
 				render(width: number): string[] {
 					const home = process.env.HOME || process.env.USERPROFILE;
@@ -92,10 +119,10 @@ export default function gridFooter(pi: ExtensionAPI): void {
 						rightTop = `(${stateModel.provider}) ${rightTop}`;
 					}
 
-					// Left bottom: tps meter (raw themed text), or blank when idle.
+					// Bottom-left cell: MCP status (from pi-mcp-adapter), kept
+					// raw so it can carry its own theming.
 					const statuses = footerData.getExtensionStatuses();
-					const tpsText = statuses.get("tps");
-					const leftBottom = tpsText ?? "";
+					const mcpText = statuses.get("mcp");
 
 					// Token / cost / context stats from the session.
 					let totalInput = 0;
@@ -153,13 +180,13 @@ export default function gridFooter(pi: ExtensionAPI): void {
 
 					// Row 1: leftTop (dim) | rightTop (dim, right-aligned).
 					const line1 = renderRow(leftTop, rightTop, width, dim);
-					// Row 2: tps (raw themed, keeps its own colors) | statsText (dim).
-					const line2 = renderRow(leftBottom, statsText, width, dim, /* leftRaw */ true);
+					// Row 2: mcp (raw themed, keeps its own colors) | statsText (dim).
+					const line2 = renderRow(mcpText ?? "", statsText, width, dim, /* leftRaw */ true);
 
-					// Row 3: any other extension statuses, sorted by key, sans "tps".
+					// Row 3: any other extension statuses, sorted by key, sans "mcp".
 					const otherStatuses: string[] = [];
 					for (const [k, v] of statuses) {
-						if (k === "tps") continue;
+						if (k === "mcp") continue;
 						otherStatuses.push(sanitizeStatus(v));
 					}
 					const lines = [line1, line2];

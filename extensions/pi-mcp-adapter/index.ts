@@ -353,6 +353,10 @@ function installMcpAdapter(pi: ExtensionAPI, options: McpAdapterOptions) {
   function startInitialization(ctx: ExtensionContext, owner: McpRuntimeOwner, oauthRuntime: McpOAuthRuntime, generation: number, staleReason: string): Promise<void> {
     owner.addCleanup(() => cleanupMaterializedBinaryResources(owner.signal));
     const promise = initializeMcp(pi, ctx, owner, {
+      // Publish status snapshots to the shared bus from the very first
+      // "connecting..." update, not only after init resolves. Consumers like
+      // pi-grid-footer rely on these events to repaint the MCP footer cell.
+      statusEvents: pi.events,
       ...(programmaticConfig || options.configPath !== undefined
         ? {
             ...(earlyConfigPath !== undefined ? { configPath: earlyConfigPath } : {}),
@@ -488,27 +492,25 @@ function installMcpAdapter(pi: ExtensionAPI, options: McpAdapterOptions) {
     }
   });
 
-  pi.on("input", async () => {
+  // Must not block prompting. Startup (eager/keep-alive connect + tool list)
+  // and keep-alive convergence run in the background; the agent surface is
+  // already valid from cached metadata and tools/scripts lazy-connect on use,
+  // so we fire the work and yield immediately. Live progress is published to
+  // the footer "mcp" status slot by initializeMcp as servers connect.
+  pi.on("input", async (_event, _ctx) => {
     const inputOwner = currentOwner;
-    if (!inputOwner?.isActive()) return;
+    if (!inputOwner?.isActive()) return { action: "continue" };
 
-    if (!state && initPromise) {
-      try {
-        await awaitWithTimeout(initPromise, INIT_WAIT_TIMEOUT_MS);
-      } catch {
-        return;
-      }
+    const pendingState = state;
+    if (pendingState) {
+      pendingState.lifecycle.ensureConverged(inputOwner.signal).catch(error => {
+        if (!isAbortError(error, inputOwner.signal)) {
+          logger.debug(`MCP: keep-alive convergence failed before input: ${formatTerminalError(error)}`);
+        }
+      });
     }
 
-    const inputState = state;
-    if (!inputState || !inputOwner.isActive()) return;
-    try {
-      await inputState.lifecycle.ensureConverged(inputOwner.signal);
-    } catch (error) {
-      if (!isAbortError(error, inputOwner.signal)) {
-        logger.debug(`MCP: keep-alive convergence failed before input: ${formatTerminalError(error)}`);
-      }
-    }
+    return { action: "continue" };
   });
 
   pi.on("session_shutdown", async () => {

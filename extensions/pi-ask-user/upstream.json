@@ -1,0 +1,7 @@
+{
+  "repo": "https://github.com/edlsh/pi-ask-user.git",
+  "branch": "main",
+  "commit": "2de7e145227f7a527e995e323a50e7ee9bf88b0e",
+  "files": ["index.ts", "single-select-layout.ts", "skills"],
+  "description": "Interactive ask_user tool with searchable split-pane selection UI, multi-select, freeform and bundled ask-user skill"
+}

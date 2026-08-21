@@ -137,3 +137,11 @@ than missing extensions.
   <https://github.com/juicesharp/rpiv-mono/tree/main/packages/rpiv-todo>
   (commit `c6e15db`, v2.6.2, MIT, monorepo path
   `packages/rpiv-todo` → `rpiv-todo/`). Reviewed: 2026-08-19.
+- `pi-ask-user/` — Interactive `ask_user` tool for collecting user
+  decisions during an agent run: searchable single/multi-select with
+  split-pane preview, freeform input, optional comment, overlay/inline
+  modes, and bundled `ask-user` decision-gating skill. Emits
+  `herdr:blocked` while waiting for input. No network, no filesystem
+  writes, no `child_process`. Source:
+  <https://github.com/edlsh/pi-ask-user> (commit `2de7e14`, v0.14.0,
+  MIT). Reviewed: 2026-08-21.

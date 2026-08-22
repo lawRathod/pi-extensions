@@ -1,9 +1,0 @@
-{
-  "repo": "https://github.com/juicesharp/rpiv-mono.git",
-  "branch": "main",
-  "commit": "c6e15dbdf962185db574413f77cc50be43e65791",
-  "files": ["index.ts", "config.ts", "todo.ts", "todo-overlay.ts", "state/", "tool/", "view/", "locales/", "package.json"],
-  "upstreamPath": "packages/rpiv-todo",
-  "localPath": ".",
-  "description": "Live todo overlay — todo tool, /todos command, persistent panel that survives /reload and compaction"
-}

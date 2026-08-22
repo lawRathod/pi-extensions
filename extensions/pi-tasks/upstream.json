@@ -1,0 +1,7 @@
+{
+  "repo": "https://github.com/tintinweb/pi-tasks.git",
+  "branch": "main",
+  "commit": "86a559cf5e378cc21fa0c7015a92c358e7227094",
+  "files": ["src/index.ts", "src/types.ts", "src/task-store.ts", "src/task-sort.ts", "src/reminder-cadence.ts", "src/auto-clear.ts", "src/tasks-config.ts", "src/process-tracker.ts", "src/ui/task-widget.ts", "src/ui/settings-menu.ts", "package.json", "tsconfig.json"],
+  "description": "Claude Code-style task tracking (TaskCreate/List/Get/Update/Output/Stop/Execute), widget with sort/collapse, reminders, DAG dependencies, auto-clear, file-backed shared lists"
+}

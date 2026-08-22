@@ -129,22 +129,14 @@ than missing extensions.
   `@aliou/pi-utils-settings` + `@aliou/sh`; only `execFile("fd")` for
   glob expansion. Source: <https://github.com/aliou/pi-guardrails>
   (commit `a3da058`, v0.17.0, MIT). Reviewed: 2026-08-18.
-- `pi-tasks/` — Claude Code-style task tracking: `TaskCreate/List/Get/Update/Output/Stop/Execute`,
-  `/tasks` command, and persistent widget with sort/collapse/maxVisible, system-reminder
-  nudges, bidirectional DAG dependencies (`blocks`/`blockedBy`), turn-based auto-clear, and
-  file-backed shared lists (`session`/`project`/`memory` + `PI_TASKS` env). DAG execution via
-  `TaskExecute`/`autoCascade` requires `pi-subagents`. No network, single runtime dep
-  `typebox`, no `eval`/`vm`. Source:
-  <https://github.com/tintinweb/pi-tasks> (commit `86a559c`, v0.8.0, MIT).
-  Reviewed: 2026-08-22.
-- `pi-subagents/` — Claude Code-style autonomous sub-agents: `Agent` tool + `get_subagent_result` /
-  `steer_subagent`, FleetView, conversation viewer, `@mention` routing (model-clone vs
-  direct), `worktree` isolation, cron/interval scheduling, nested delegation (depth-capped),
-  streaming `.output` transcripts. Cross-extension RPC (`subagents:rpc:*`) with protocol
-  versioning for `pi-tasks` `TaskExecute`/`autoCascade`. Deps `typebox`/`croner`/`nanoid`,
-  `execFile("git")` only for worktree ops. Source:
-  <https://github.com/tintinweb/pi-subagents> (commit `3f9d35c`, v0.18.0, MIT).
-  Reviewed: 2026-08-22.
+- `rpiv-todo/` — Live todo overlay for the model: `todo` tool,
+  `/todos` command, and persistent panel above the editor surviving
+  `/reload` and compaction. Session-isolated, dependency-aware
+  (`blockedBy` cycle-checked). No network, no disk writes (state
+  replayed from branch). Source:
+  <https://github.com/juicesharp/rpiv-mono/tree/main/packages/rpiv-todo>
+  (commit `c6e15db`, v2.6.2, MIT, monorepo path
+  `packages/rpiv-todo` → `rpiv-todo/`). Reviewed: 2026-08-19.
 - `pi-ask-user/` — Interactive `ask_user` tool for collecting user
   decisions during an agent run: searchable single/multi-select with
   split-pane preview, freeform input, optional comment, overlay/inline

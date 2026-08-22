@@ -1,7 +1,0 @@
-{
-  "repo": "https://github.com/tintinweb/pi-subagents.git",
-  "branch": "main",
-  "commit": "3f9d35cd078d18a141eb5a6d8f4fc5010d756280",
-  "files": ["src/index.ts", "src/agent-manager.ts", "src/agent-runner.ts", "src/agent-types.ts", "src/agent-color.ts", "src/agent-file-toggle.ts", "src/custom-agents.ts", "src/default-agents.ts", "src/env.ts", "src/group-join.ts", "src/invocation-config.ts", "src/memory.ts", "src/mention.ts", "src/mention-clone.ts", "src/model-resolver.ts", "src/model-scope.ts", "src/nested-tools.ts", "src/output-file.ts", "src/prompts.ts", "src/schedule.ts", "src/schedule-store.ts", "src/settings.ts", "src/skill-loader.ts", "src/status-note.ts", "src/types.ts", "src/usage.ts", "src/worktree.ts", "src/abortable.ts", "src/child-context.ts", "src/context.ts", "src/cross-extension-rpc.ts", "src/enabled-models.ts", "src/ui/agent-mention.ts", "src/ui/agent-widget.ts", "src/ui/conversation-viewer.ts", "src/ui/fleet-list.ts", "src/ui/schedule-menu.ts", "src/ui/select-item.ts", "src/ui/viewer-keys.ts", "package.json", "tsconfig.json"],
-  "description": "Claude Code-style autonomous sub-agents for pi — Agent tool, FleetView, conversation viewer, @mention routing, worktree isolation, scheduling, nested delegation"
-}

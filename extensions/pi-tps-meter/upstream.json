@@ -1,8 +1,10 @@
 {
   "repo": "https://github.com/vskrch/pi-tps-meter.git",
   "branch": "main",
-  "commit": "e445924",
-  "files": ["index.ts"],
+  "commit": "cbf35bd0831410b24c1de79e3e2deea9e29b576f",
+  "files": [
+    "index.ts"
+  ],
   "upstreamPath": "extensions/tps-meter.ts",
   "localPath": "index.ts",
   "description": "Live tokens-per-second meter with sparkline and stats"

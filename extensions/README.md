@@ -174,3 +174,13 @@ than missing extensions.
   through `@modelcontextprotocol/client`. Source:
   <https://github.com/nicobailon/pi-mcp-adapter> (commit `a3072f6`,
   v2.27.0, MIT). Reviewed: 2026-08-21.
+- `pi-subagents-lite/` — Sub-agents for pi: spawn custom agents in
+  isolated sessions with own tools, extensions, and model. Three
+  tools (`Agent`, `StopAgent`, `AgentStatus`) with minimal token
+  overhead, no descriptions. Foreground and background agents,
+  concurrency limits, watchdog for stuck agents, cross-repo worktree
+  support, custom agent types via `.md` files, and a live widget
+  above the editor with conversation viewer. No exfiltration, no
+  eval, no obfuscation. Dependencies: `@sinclair/typebox`. Source:
+  <https://github.com/AlexParamonov/pi-subagents-lite> (commit
+  `e35a49d`, v1.13.0, MIT). Reviewed: 2026-08-27.

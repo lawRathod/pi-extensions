@@ -184,6 +184,16 @@ than missing extensions.
   eval, no obfuscation. Dependencies: `@sinclair/typebox`. Source:
   <https://github.com/AlexParamonov/pi-subagents-lite> (commit
   `e35a49d`, v1.13.0, MIT). Reviewed: 2026-08-27.
+- `pi-neuralwatt/` — Neuralwatt model provider for pi. OpenAI-compatible
+  API with energy transparency, quota tracking (credits + energy),
+  rate-limit error rewriting (layer-specific headers), live SSE quota
+  comments, and quota warnings. Sub-bar integration shows live usage.
+  Network calls scoped to `api.neuralwatt.com`. No eval, no
+  `child_process`, no filesystem writes outside pi's auth/credential
+  storage. Dependencies: `@aliou/pi-utils-settings`,
+  `@aliou/pi-utils-ui`. Source:
+  <https://github.com/aliou/pi-neuralwatt> (commit `66472af`, v0.15.2,
+  MIT). Reviewed: 2026-09-07.
 - `ponytail/` — Lazy senior dev mode for pi. Injects a YAGNI ruleset
   (lite/full/ultra) into every prompt, plus skill routes for
   review/audit/debt/gain/help. No exfiltration, no eval, no network.

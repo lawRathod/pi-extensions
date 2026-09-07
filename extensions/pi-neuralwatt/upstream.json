@@ -1,0 +1,7 @@
+{
+  "repo": "https://github.com/aliou/pi-neuralwatt",
+  "branch": "main",
+  "commit": "66472af",
+  "files": ["package.json", "schema.json", "tsconfig.json", "src/", "extensions/"],
+  "description": "Neuralwatt model provider for pi — OpenAI-compatible API with quota management, rate-limit handling, and energy transparency"
+}

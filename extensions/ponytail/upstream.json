@@ -1,0 +1,14 @@
+{
+  "repo": "https://github.com/DietrichGebert/ponytail",
+  "branch": "main",
+  "commit": "356918e",
+  "files": [
+    "index.js",
+    "hooks/ponytail-config.cjs",
+    "hooks/ponytail-instructions.cjs",
+    "hooks/ponytail-runtime.cjs"
+  ],
+  "upstreamPath": "pi-extension/",
+  "localPath": "./",
+  "description": "Ponytail — YAGNI/lazy-senior-dev mode for pi with lite/full/ultra levels"
+}

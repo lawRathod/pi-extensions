@@ -184,3 +184,10 @@ than missing extensions.
   eval, no obfuscation. Dependencies: `@sinclair/typebox`. Source:
   <https://github.com/AlexParamonov/pi-subagents-lite> (commit
   `e35a49d`, v1.13.0, MIT). Reviewed: 2026-08-27.
+- `ponytail/` — Lazy senior dev mode for pi. Injects a YAGNI ruleset
+  (lite/full/ultra) into every prompt, plus skill routes for
+  review/audit/debt/gain/help. No exfiltration, no eval, no network.
+  Filesystem writes scoped to `~/.config/ponytail/` (config) and
+  Claude/Codex plugin state dirs (mode flag). Source:
+  <https://github.com/DietrichGebert/ponytail> (commit `356918e`, MIT).
+  Reviewed: 2026-09-07.

@@ -26,13 +26,17 @@ export interface CommandCodeRuntimeApi<
 export interface CommandCodeRuntimeOptions<TProviderConfig> {
   endpoint: string
   cachePath: string
-  loadModels: () => Promise<LoadCommandCodeModelsResult>
+  loadModels: (signal: AbortSignal) => Promise<LoadCommandCodeModelsResult>
+  /** Cached catalog only; resolves to an empty list when no valid cache exists. */
+  loadCachedModels: () => Promise<readonly CommandCodeModel[]>
   createProviderConfig: (models: readonly CommandCodeModel[]) => TProviderConfig
+  getTransport?: () => "unknown" | "provider" | "generate"
   now?: () => number
   logWarning?: (message: string) => void
 }
 
 export interface CommandCodeRuntimeStatus {
+  transport: "unknown" | "provider" | "generate"
   source: LoadCommandCodeModelsResult["source"]
   modelCount: number
   lastSuccess?: number
@@ -86,6 +90,7 @@ function formatTimestamp(timestamp: number | undefined): string {
 
 export function formatCommandCodeStatus(status: CommandCodeRuntimeStatus): string {
   const lines = [
+    `transport: ${status.transport}`,
     `source: ${status.source}`,
     `model count: ${status.modelCount}`,
     `last success: ${formatTimestamp(status.lastSuccess)}`,
@@ -105,6 +110,7 @@ export class CommandCodeRuntime<TProviderConfig, TContext extends CommandCodeCom
   private status: CommandCodeRuntimeStatus
   private providerRegistered = false
   private refreshPromise: Promise<CommandCodeRefreshResult> | undefined
+  private readonly shutdown = new AbortController()
 
   constructor(
     private readonly pi: CommandCodeRuntimeApi<TProviderConfig, TContext>,
@@ -113,6 +119,7 @@ export class CommandCodeRuntime<TProviderConfig, TContext extends CommandCodeCom
     this.now = options.now ?? Date.now
     this.logWarning = options.logWarning ?? ((message) => console.warn(`[commandcode] ${message}`))
     const initialStatus: CommandCodeRuntimeStatus = {
+      transport: "unknown",
       source: "empty",
       modelCount: 0,
       cachePath: options.cachePath,
@@ -123,12 +130,40 @@ export class CommandCodeRuntime<TProviderConfig, TContext extends CommandCodeCom
   }
 
   getStatus(): CommandCodeRuntimeStatus {
-    return { ...this.status }
+    return {
+      ...this.status,
+      transport: this.options.getTransport?.() ?? "unknown",
+    }
   }
 
+  /**
+   * Registers the cached catalog immediately and refreshes it in the
+   * background so host startup does not wait for the network. Without a
+   * valid cache the live refresh is awaited so models are available at once.
+   */
   async initialize(): Promise<void> {
     this.registerCommands()
-    await this.refresh()
+
+    const cached = await this.options.loadCachedModels()
+    if (cached.length === 0) {
+      await this.refresh()
+      return
+    }
+
+    this.pi.registerProvider("commandcode", this.options.createProviderConfig(cached))
+    this.providerRegistered = true
+    this.status = {
+      ...this.status,
+      source: "cache",
+      modelCount: cached.length,
+      lastSuccess: this.now(),
+    }
+    void this.refresh()
+  }
+
+  /** Aborts any background refresh so a stopping host does not wait for the network. */
+  dispose(): void {
+    this.shutdown.abort(new Error("Command Code provider shut down"))
   }
 
   refresh(): Promise<CommandCodeRefreshResult> {
@@ -149,7 +184,7 @@ export class CommandCodeRuntime<TProviderConfig, TContext extends CommandCodeCom
     }
 
     try {
-      const loaded = await this.options.loadModels()
+      const loaded = await this.options.loadModels(this.shutdown.signal)
       const warning = loaded.warning ? redactDiagnosticText(loaded.warning) : undefined
 
       const shouldRegister =
@@ -210,6 +245,14 @@ export class CommandCodeRuntime<TProviderConfig, TContext extends CommandCodeCom
         warning: preservedWarning,
       }
     } catch (error) {
+      if (this.shutdown.signal.aborted) {
+        this.status = { ...this.status, refreshing: false }
+        return {
+          refreshed: false,
+          source: this.status.source,
+          modelCount: this.status.modelCount,
+        }
+      }
       const warning = redactDiagnosticText(
         `Could not refresh the Command Code model catalog: ${errorMessage(error)}`,
       )
@@ -259,10 +302,8 @@ export class CommandCodeRuntime<TProviderConfig, TContext extends CommandCodeCom
     this.pi.registerCommand("commandcode-status", {
       description: "Show redacted Command Code provider diagnostics",
       handler: async (_args, ctx) => {
-        ctx.ui.notify(
-          formatCommandCodeStatus(this.status),
-          this.status.warning ? "warning" : "info",
-        )
+        const status = this.getStatus()
+        ctx.ui.notify(formatCommandCodeStatus(status), status.warning ? "warning" : "info")
       },
     })
   }

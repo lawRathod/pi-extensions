@@ -137,14 +137,31 @@ than missing extensions.
   <https://github.com/juicesharp/rpiv-mono/tree/main/packages/rpiv-todo>
   (commit `c6e15db`, v2.6.2, MIT, monorepo path
   `packages/rpiv-todo` → `rpiv-todo/`). Reviewed: 2026-08-19.
-- `pi-ask-user/` — Interactive `ask_user` tool for collecting user
-  decisions during an agent run: searchable single/multi-select with
-  split-pane preview, freeform input, optional comment, overlay/inline
-  modes, and bundled `ask-user` decision-gating skill. Emits
-  `herdr:blocked` while waiting for input. No network, no filesystem
-  writes, no `child_process`. Source:
-  <https://github.com/edlsh/pi-ask-user> (commit `2de7e14`, v0.14.0,
-  MIT). Reviewed: 2026-08-21.
+- `rpiv-ask-user-question/` — Structured questionnaire tool
+  (`ask_user_question`): 1-4 tabbed questions with 2-4 typed options
+  each, required option descriptions, optional markdown `preview` pane,
+  per-question and global notes, Submit review tab, fuzzy-free keyboard
+  flow, RPC/ACP `select`/`input` dialog fallback, and config-file
+  overrides for tool description / `promptSnippet` / `promptGuidelines`.
+  Mandatory security review passed 2026-09-14: **no network calls of any
+  kind**, no `eval`/`new Function`/`vm`, no obfuscation. Only `node:fs`
+  write is a `mkdtempSync` temp file under `$TMPDIR` for the `Ctrl+G`
+  external editor (removed in `finally`); `node:child_process` `spawn`
+  runs only the editor command Pi itself resolves via
+  `SettingsManager.getExternalEditorCommand()`, with the same
+  `command.split(" ")` grammar as Pi's own editor flow. Config reads are
+  scoped to `$XDG_CONFIG_HOME/rpiv-ask-user-question/config.json`
+  (read-only, never written by this package). The only tool-list
+  mutation is an idempotent add/remove of its own `ask_user_question`
+  gated on `ctx.hasUI`. Dependencies: `@juicesharp/rpiv-config`
+  (local-path shared util, read-only config I/O) and `typebox`; optional
+  peer `@juicesharp/rpiv-i18n` (dynamic import, English fallback when
+  absent); no postinstall hooks. `docs/*.png|jpg|svg` and the test suite
+  are excluded from this copy. Source:
+  <https://github.com/juicesharp/rpiv-mono/tree/main/packages/rpiv-ask-user-question>
+  (commit `0fdf4f8`, v2.10.1, MIT, monorepo path
+  `packages/rpiv-ask-user-question` → `rpiv-ask-user-question/`).
+  Reviewed: 2026-09-14.
 - `pi-web-access/` — Web search, URL fetching, GitHub repo cloning, PDF extraction,
   YouTube video understanding, and local video analysis. Tools:
   `web_search`, `fetch_content`, `get_search_content`, `source_check`;

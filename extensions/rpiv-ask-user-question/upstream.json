@@ -1,0 +1,23 @@
+{
+  "repo": "https://github.com/juicesharp/rpiv-mono.git",
+  "branch": "main",
+  "commit": "0fdf4f813980d380e826b84d1280a4960e5d088e",
+  "files": [
+    "index.ts",
+    "ask-user-question.ts",
+    "rpc-fallback.ts",
+    "config.ts",
+    "events.ts",
+    "reconcile.ts",
+    "package.json",
+    "state/",
+    "tool/",
+    "view/",
+    "locales/",
+    "docs/*.md"
+  ],
+  "upstreamPath": "packages/rpiv-ask-user-question",
+  "localPath": ".",
+  "exclude": ["*.test.ts", "state/test-fixtures.ts", "docs/*.png", "docs/*.jpg", "docs/*.svg", "docs/CHANGELOG.md"],
+  "description": "Structured questionnaire tool (ask_user_question): 1-4 tabbed questions with typed options, markdown previews, per-question and global notes, submit review, RPC dialog fallback, configurable prompt guidance"
+}

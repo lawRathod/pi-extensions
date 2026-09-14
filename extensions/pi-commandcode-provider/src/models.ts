@@ -88,7 +88,9 @@ export function thinkingMetadataForModel(modelId: string): ThinkingMetadata | un
 }
 
 function isReasoningModel(modelId: string): boolean {
-  return MODEL_REASONING[modelId] === true
+  // An override carrying selectable efforts is a reasoning model by definition,
+  // so manual overrides need no matching entry in the generated catalog.
+  return MODEL_REASONING[modelId] === true || MODEL_EFFORTS[modelId] !== undefined
 }
 
 function maxOutputTokensForModel(modelId: string, contextLength: number): number {

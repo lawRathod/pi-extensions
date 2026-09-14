@@ -22,4 +22,9 @@ export const MODEL_EFFORT_OVERRIDES: Readonly<
   "meta/muse-spark-1.2-contributor": ["minimal", "low", "medium", "high", "xhigh"],
   "meta/muse-spark-1.3": ["minimal", "low", "medium", "high", "xhigh"],
   "meta/muse-spark-1.3-contributor": ["minimal", "low", "medium", "high", "xhigh"],
+
+  // DeepSeek V4.1 Flash: served by the live Provider API and listed in
+  // command-code@1.54.0 (reference/models.md: `low, high, max`), but the
+  // generated catalog here is still on 1.44.0. Drop once the catalog catches up.
+  "deepseek/deepseek-v4.1-flash": ["low", "high", "max"],
 }

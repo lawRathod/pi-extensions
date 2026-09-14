@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { dirname } from "node:path"
 
-import { MODEL_EFFORT_OVERRIDES } from "./commandcode-catalog-overrides.ts"
+import { MODEL_EFFORT_OVERRIDES, MODEL_INPUT_MODALITY_OVERRIDES } from "./commandcode-catalog-overrides.ts"
 import {
   MODEL_EFFORTS as CATALOG_MODEL_EFFORTS,
   MODEL_INPUT_MODALITIES,
@@ -32,7 +32,11 @@ export type CommandCodeApi = "openai-completions" | "anthropic-messages"
 const TEXT_INPUT_ONLY = ["text"] as const
 
 export function inputModalitiesForModel(modelId: string): readonly CommandCodeInputType[] {
-  return MODEL_INPUT_MODALITIES[modelId] ?? TEXT_INPUT_ONLY
+  // Overrides win over the generated catalog: they only exist for models the
+  // bundled catalog predates (see commandcode-catalog-overrides.ts).
+  return (
+    MODEL_INPUT_MODALITY_OVERRIDES[modelId] ?? MODEL_INPUT_MODALITIES[modelId] ?? TEXT_INPUT_ONLY
+  )
 }
 
 export function modelSupportsImageInput(modelId: string): boolean {

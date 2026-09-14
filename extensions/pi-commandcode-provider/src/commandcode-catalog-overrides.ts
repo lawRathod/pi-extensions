@@ -1,4 +1,7 @@
-import type { CommandCodeReasoningEffort } from "./commandcode-catalog.ts"
+import type {
+  CommandCodeInputType,
+  CommandCodeReasoningEffort,
+} from "./commandcode-catalog.ts"
 
 /**
  * Manual reasoning-effort policy for models the official CLI marks as
@@ -27,4 +30,20 @@ export const MODEL_EFFORT_OVERRIDES: Readonly<
   // command-code@1.54.0 (reference/models.md: `low, high, max`), but the
   // generated catalog here is still on 1.44.0. Drop once the catalog catches up.
   "deepseek/deepseek-v4.1-flash": ["low", "high", "max"],
+}
+
+/**
+ * Manual input-modality policy for models the generated catalog does not know
+ * about yet. Same rationale and lifecycle as `MODEL_EFFORT_OVERRIDES`: keep
+ * `src/commandcode-catalog.ts` byte-identical to upstream so the daily drift
+ * check works, and drop the entry once the catalog catches up.
+ */
+export const MODEL_INPUT_MODALITY_OVERRIDES: Readonly<
+  Record<string, readonly CommandCodeInputType[]>
+> = {
+  // DeepSeek V4.1 Flash: command-code@1.54.0 ships
+  // `inputModalities: ["text", "image"]` (reference/models.md: "V4.1
+  // hybrid-attention reasoning with vision"), but the generated catalog here is
+  // still on 1.44.0, so pi registered it as text-only and dropped images.
+  "deepseek/deepseek-v4.1-flash": ["text", "image"],
 }

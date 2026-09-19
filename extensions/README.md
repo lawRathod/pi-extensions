@@ -218,3 +218,14 @@ than missing extensions.
   Claude/Codex plugin state dirs (mode flag). Source:
   <https://github.com/DietrichGebert/ponytail> (commit `356918e`, MIT).
   Reviewed: 2026-09-07.
+- `pi-goal/` — Persistent autonomous goals for pi: `/goal [--tokens 50k]
+  <objective>` plus `create_goal`/`get_goal`/`update_goal` tools (the latter
+  two exposed only while a goal is active). Persists goal state as pi
+  session entries, continues the same session until complete/paused/
+  cleared/budget-limited, and ships the `pi-goal-writer` skill. No
+  exfiltration, no `child_process`, no filesystem writes (state lives in
+  the session), no eval. Local patches: imports retargeted
+  `@mariozechner/*` → `@earendil-works/*`, and an empty status is cleared
+  with `undefined` instead of `""` so the footer status row stays empty.
+  Source: <https://github.com/Michaelliv/pi-goal> (commit `3f100be`,
+  v0.1.7, MIT). Reviewed: 2026-09-19.

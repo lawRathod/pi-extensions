@@ -1,0 +1,20 @@
+{
+  "repo": "https://github.com/Michaelliv/pi-goal.git",
+  "branch": "main",
+  "commit": "3f100be5434454d3388755a119d01caca9127c16",
+  "files": [
+    "index.ts",
+    "goal-state.ts",
+    "usage.ts",
+    "skills/pi-goal-writer/SKILL.md",
+    "README.md",
+    "LICENSE"
+  ],
+  "upstreamPath": ".pi/extensions/pi-goal/",
+  "localPath": "./",
+  "description": "Persistent autonomous goals for pi — /goal command, create_goal/get_goal/update_goal tools, token budgets, and the pi-goal-writer skill (upstream skill lives at skills/pi-goal-writer/)",
+  "customizations": [
+    "imports retargeted from @mariozechner/* to @earendil-works/*",
+    "updateStatusBar passes undefined instead of \"\" when there is no goal, so the footer status row stays empty instead of rendering a blank line"
+  ]
+}

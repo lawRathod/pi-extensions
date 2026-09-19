@@ -11,9 +11,9 @@ Replaces pi's built-in footer with a 2×2 layout:
 The bottom-left cell is reserved for the MCP status (set by `pi-mcp-adapter`
 via `ctx.ui.setStatus("mcp", ...)`). It shows live connection progress
 (`🔌 MCP: connecting…`, `N/M connected`, then `N enabled (N connected)`),
-repainting on every update. All other statuses (including the `tps` meter)
-go on an optional 3rd line, sorted, with `mcp` filtered out so it isn't
-shown twice.
+repainting on every update. All other statuses (including the `tps` meter
+and `pi-goal`'s `Pursuing goal…` / `Goal paused` / `Goal achieved`) go on an
+optional 3rd line, sorted, with `mcp` filtered out so it isn't shown twice.
 
 ## Layout details
 

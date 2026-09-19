@@ -225,7 +225,11 @@ than missing extensions.
   cleared/budget-limited, and ships the `pi-goal-writer` skill. No
   exfiltration, no `child_process`, no filesystem writes (state lives in
   the session), no eval. Local patches: imports retargeted
-  `@mariozechner/*` → `@earendil-works/*`, and an empty status is cleared
-  with `undefined` instead of `""` so the footer status row stays empty.
+  `@mariozechner/*` → `@earendil-works/*`, an empty status is cleared
+  with `undefined` instead of `""` so the footer status row stays empty,
+  and an escape-aborted turn pauses the goal instead of letting
+  `agent_end` queue another continuation (ported from the unmerged
+  upstream branch `fix/pause-on-escape`; guarded by
+  `test/abort-pauses.test.cjs`).
   Source: <https://github.com/Michaelliv/pi-goal> (commit `3f100be`,
   v0.1.7, MIT). Reviewed: 2026-09-19.

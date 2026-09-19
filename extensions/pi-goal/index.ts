@@ -422,9 +422,24 @@ export default function piGoal(pi: ExtensionAPI) {
 		const elapsed = activeTurnStartedAt ? Math.max(0, Math.round((Date.now() - activeTurnStartedAt) / 1000)) : 0;
 		activeTurnStartedAt = null;
 		activeGoalThisTurnId = null;
-		const tokenDelta = tokenDeltaFromUsage((event.message as { usage?: UsageSnapshot } | undefined)?.usage);
-		const next = accountGoalTurn(goal, tokenDelta, elapsed);
+		const message = event.message as { usage?: UsageSnapshot; stopReason?: string } | undefined;
+		const tokenDelta = tokenDeltaFromUsage(message?.usage);
+		const accounted = accountGoalTurn(goal, tokenDelta, elapsed);
+		// An abort (escape, ctx.abort()) must pause the goal: the aborted turn is
+		// still charged, but budget_limited is skipped because paused wins. Without
+		// this, agent_end below would queue another continuation and the goal would
+		// silently resume. The pause notice reaches the LLM on its next invocation.
+		const aborted = message?.stopReason === "aborted";
+		const next: GoalState = aborted ? { ...accounted, status: "paused", updatedAt: Date.now() } : accounted;
 		persist(pi, ctx, next);
+		if (aborted) {
+			emitGoalEvent(pi, "paused", next, { deliverAs: "nextTurn" });
+			ctx.ui.notify(
+				`‖ Goal paused after escape: ${truncateObjective(next.objective)}\nUse /goal resume to continue, or /goal clear to stop.`,
+				"info",
+			);
+			return;
+		}
 		if (next.status === "budget_limited") {
 			emitGoalEvent(pi, "budget_limited", next, { triggerTurn: true, deliverAs: "followUp" });
 		}

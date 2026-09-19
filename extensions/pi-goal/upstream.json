@@ -15,6 +15,7 @@
   "description": "Persistent autonomous goals for pi — /goal command, create_goal/get_goal/update_goal tools, token budgets, and the pi-goal-writer skill (upstream skill lives at skills/pi-goal-writer/)",
   "customizations": [
     "imports retargeted from @mariozechner/* to @earendil-works/*",
-    "updateStatusBar passes undefined instead of \"\" when there is no goal, so the footer status row stays empty instead of rendering a blank line"
+    "updateStatusBar passes undefined instead of \"\" when there is no goal, so the footer status row stays empty instead of rendering a blank line",
+    "pause on abort: turn_end treats stopReason === \"aborted\" as a user pause (usage still charged, agent_end does not re-queue a continuation) — ported from the unmerged upstream branch fix/pause-on-escape, commit 3078686. Guarded by test/abort-pauses.test.cjs"
   ]
 }

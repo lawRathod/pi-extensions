@@ -4,11 +4,190 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-09-19
+
+### Highlights
+
+- Start installed copies of Pi Web Access much faster with a precompiled bundle.
+- Use standalone OpenAI search or reuse an existing Pi provider URL without duplicating gateway configuration.
+- Control which search providers and fetch modes are available.
+- Search Google through the new explicit Serply provider.
+- Get more reliable proxy handling, OpenCode requests, PDF answers, source checks, and stored-content retrieval.
+
+### Added
+
+- Added opt-in `openaiUseProviderBaseUrl` to reuse a selected Pi provider's URL and credentials for OpenAI search. An explicit `openaiResponsesUrl` still takes precedence.
+- Added opt-in `openaiUseAlphaSearch` for standalone OpenAI search, with source limits, recency filtering, allowed-domain filtering, and normal provider fallback. Existing Responses search remains the default. Thanks to [@ZacharyQin](https://github.com/ZacharyQin) for [PR #420](https://github.com/nicobailon/pi-web-access/pull/420).
+- Added `fetch.defaultMode` and `fetch.allowedModes` for choosing the default `fetch_content` mode and disabling unwanted modes. Thanks to [@Slooz](https://github.com/Slooz) for #395.
+- Added `webSearch.allowedProviders` to restrict providers consistently across search, source checks, routing, aggregation, schemas, and Curator. Thanks to [@Slooz](https://github.com/Slooz) for #396.
+- Added an explicit-only Serply Google Search provider with domain filtering, recency filtering, routing, and Curator support. Configure it with `serplyApiKey` or `SERPLY_API_KEY`. Thanks to Serply vendor [@googio](https://github.com/googio) for PR #386.
+
+### Changed
+
+- Published packages now load a precompiled bundle for faster startup, while source checkouts continue loading TypeScript directly. Thanks to [@Yisus423](https://github.com/Yisus423) for [issue #418](https://github.com/nicobailon/pi-web-access/issues/418) and [PR #419](https://github.com/nicobailon/pi-web-access/pull/419).
+- Fresh installs now use the silent `none` web search workflow by default. Explicit and configured Curator or summary workflows are unchanged. Thanks to [@ducaoya](https://github.com/ducaoya) for issue #416.
+
+### Fixed
+
+- Preserve legacy `~/.pi/web-search.json` configuration when `~/.pi/agent/web-search.json` is absent in default environments without `XDG_CONFIG_HOME`. Thanks to [@fancyboi999](https://github.com/fancyboi999) for issue #411.
+- List Crawl4AI in the README provider summary and the package description, which both still omitted it after the provider shipped in 0.29.0. Thanks to [@bergheim](https://github.com/bergheim) for [PR #382](https://github.com/nicobailon/pi-web-access/pull/382).
+- Removed the unconditional global `fetch` replacement during extension initialization; proxy transport is now installed lazily when a proxied web-tool operation runs. Thanks to [@AdrianJ20](https://github.com/AdrianJ20) for [issue #388](https://github.com/nicobailon/pi-web-access/issues/388).
+- Send OpenCode session attribution headers when generating summaries, preventing configured `opencode` and `opencode-go` summary models from silently falling through to another candidate. Thanks to [@damozhang](https://github.com/damozhang) for issue #385.
+- Send the `x-opencode-session` / `x-opencode-client` attribution headers when `fetch_content` answer mode uses an `opencode` or `opencode-go` model. The answer path dispatches through the model registry, which bypasses the attribution headers Pi merges in the main agent loop, so those requests were rejected with `400 MissingSessionID`. Thanks to [@MrSerious0](https://github.com/MrSerious0) for PR #381.
+- Pass extracted PDF Markdown to `fetch_content` answer mode instead of the saved-file notice, while preserving readable-mode file output and stored-content retrieval. Thanks to [@MDGChamomile](https://github.com/MDGChamomile) for PR #390.
+- Prevent malformed `fetch_content` auth, mode, or proxy parameters from breaking tool-call rendering while preserving strict execution validation. Thanks to [@tekumara](https://github.com/tekumara) for issue #387.
+- Clarified that a negative `fetch_content` answer-mode result means the answer was not found in the extracted content, rather than asserting that it is absent from the whole page. Thanks to [@Slooz](https://github.com/Slooz) for issue #394.
+- Stop inferring claim support or contradiction from unrelated lexical markers in `source_check`; retrieved passages now require manual semantic review. Thanks to [@wayenchan](https://github.com/wayenchan) for issue #383.
+- Return bounded `get_search_content` excerpts instead of dropping oversized merged match ranges, using compact query IDs to reserve representative ranges when discovered spans fit the output budget. Thanks to [@MDGChamomile](https://github.com/MDGChamomile) for PR #391.
+
+## [0.29.0] - 2026-09-10
+
+### Highlights
+
+- Search Google through SerpApi with domain and recency filters.
+- Use a self-hosted Crawl4AI instance as an extraction fallback.
+- Connect through SOCKS proxies and resolve credentials with 1Password service accounts.
+- Start Pi faster through on-demand loading of extraction and AI features.
+- Get more reliable provider fallback, credential routing, caching, and config discovery.
+
+### Added
+
+- Added a Curator action that approves the current summary and uses auto-summary for later default-workflow searches in the same prompt run. The choice is not saved between prompts. Thanks to [@thomak-dev](https://github.com/thomak-dev) for issue #376.
+- Added a self-hosted Crawl4AI extraction fallback for `fetch_content`, configured with `crawl4aiBaseUrl` / `CRAWL4AI_BASE_URL` and `crawl4aiApiToken` / `CRAWL4AI_API_TOKEN`. It runs after Firecrawl and before hosted providers, and can be selected with `crawl4ai` in `fetchRouting.providers`. Thanks to [@bergheim](https://github.com/bergheim) for [PR #375](https://github.com/nicobailon/pi-web-access/pull/375).
+- Added an explicit SerpApi Google Search provider with `serpapiApiKey` / `SERPAPI_KEY`, domain and recency filters, search routing, and Curator support. Thanks to [@tanysheng](https://github.com/tanysheng) for PR #363.
+- Added SOCKS4, SOCKS4A, SOCKS5, and SOCKS5H proxy support in config and per-call overrides. Thanks to [@phillipzink](https://github.com/phillipzink) for PR #365.
+- Added 1Password service-account support for credential resolver commands through `OP_SERVICE_ACCOUNT_TOKEN`. Thanks to PR author [@Avg8888](https://github.com/Avg8888) and commit author [@xapids](https://github.com/xapids) for [PR #364](https://github.com/nicobailon/pi-web-access/pull/364).
+
+### Changed
+
+- Load extraction and AI features only when first used, reducing extension startup time. Thanks to [@ducaoya](https://github.com/ducaoya) for PR #366.
+
+### Fixed
+
+- Treat Tavily monthly plan exhaustion as a quota error so search routing can fall back to another provider. Thanks to [@simbel](https://github.com/simbel) for issue #378.
+- Refuse to send Pi-resolved OpenAI credentials to the official Responses endpoint when they belong to a provider with a custom `baseUrl`. Configure `openaiResponsesUrl` explicitly to search through a gateway. Thanks to [@projectkite](https://github.com/projectkite) for issue #367.
+- Remove expired fetched content from memory when pruning the cache, while preserving the retrieval window and session history. Thanks to [@MDGChamomile](https://github.com/MDGChamomile) for issue #362.
+- Use Pi's agent directory (`~/.pi/agent/web-search.json`) for the default web-search config instead of falling back to the legacy `~/.pi/web-search.json`. Existing `PI_CODING_AGENT_DIR` and XDG behavior is unchanged. Thanks to [@lJoublanc](https://github.com/lJoublanc) for issue #360.
+
+## [0.28.0] - 2026-09-04
+
+### Highlights
+
+- Search X posts through xAI or choose Mistral for web searches.
+- Batch searches run in parallel for faster multi-query research.
+- Follow-up retrieval can access stored search results, and Perplexity keeps all cited sources.
+- Web-tool proxy settings no longer affect unrelated Pi requests.
+
+### Added
+
+- Documented the Linux `xdg-utils` dependency for automatic curator browser launch and the manual URL fallback. Thanks to [@wickedTangent](https://github.com/wickedTangent) for issue #336 and PR #337.
+- Added opt-in X post search through xAI alongside web search, configured with `xaiSearchTools`. Thanks to [@Jerry2003sky](https://github.com/Jerry2003sky) for issue #342.
+- Added Mistral web search with `provider: "mistral"`, using `mistralApiKey` / `MISTRAL_API_KEY` credentials. Premium web search is available as a separate opt-in. Thanks to [@jaudiger](https://github.com/jaudiger) for issue #346.
+
+### Changed
+
+- Run batch searches in parallel with a concurrency limit, keeping results in query order and preserving provider fallback. Thanks to [@Noir-Lime](https://github.com/Noir-Lime) for PR #345.
+
+### Fixed
+
+- Included `responseId` in search output so the model can retrieve stored results with `get_search_content`. Thanks to [@axelbaumlisto](https://github.com/axelbaumlisto) for PR #354.
+- Fixed flaky tests on slower Node startups. Thanks to [@axelbaumlisto](https://github.com/axelbaumlisto) for PR #353.
+- Kept all sources cited in Perplexity answers, even beyond `numResults`. Answers without citations still respect the result limit. Thanks to [@schlessera](https://github.com/schlessera) for issue #340 and PR #341.
+- Limited configured proxies to web-tool requests so unrelated Pi requests are unaffected. Thanks to [@alexei-ciobanu](https://github.com/alexei-ciobanu) for PR #339 and [@mystery4f](https://github.com/mystery4f) for PR #343.
+- Cleaned up abandoned GitHub clone directories after crashes, only when their owning process is confirmed dead. Thanks to [@yazanabuashour](https://github.com/yazanabuashour) for issue #331.
+- Kept using an existing `~/.pi/web-search.json` when `XDG_CONFIG_HOME` is set but no config file exists there. Thanks to [@hu3rror](https://github.com/hu3rror) for issue #333.
+
+## [0.27.0] - 2026-08-28
+
+### Highlights
+
+- `fetch_content` now lets you tune direct HTTP and Jina Reader timeouts from config.
+- Answer mode can use a configured default model while still allowing per-call overrides.
+- HTML fallback parsing is quieter for pages with relative canonical links.
+- GitHub repository fetching is safer when more than one Pi process is running.
+
+### Added
+
+- Added opt-in `fetch.timeout` configuration in seconds for the direct HTTP and Jina Reader `fetch_content` paths, with per-call timeout overrides taking precedence. Thanks to [@linuxtextadventurer](https://github.com/linuxtextadventurer) for PR #327.
+- Added opt-in `fetch.answerProvider` and `fetch.answerModel` defaults for `fetch_content` answer mode, with per-call `answerModel` overrides taking precedence. Thanks to [@linuxtextadventurer](https://github.com/linuxtextadventurer) for PR #328.
+
+### Fixed
+
+- Set the Defuddle fallback document URL before parsing pages with relative canonical links, preventing `ERR_INVALID_URL` warnings. Thanks to [@bin115885](https://github.com/bin115885) for issue #322.
+- Isolated GitHub clone workdirs per extension runtime so cleanup in one process cannot delete another process's clone. Thanks to [@MDGChamomile](https://github.com/MDGChamomile) for PR #323.
+
+
+## [0.26.0] - 2026-08-28
+
+### Highlights
+- `web_search` now includes XCrawl as an explicit search provider.
+- XCrawl results now produce safer clickable links, including relative redirect links from the API.
+- Local models can send multiple web-search queries as a JSON string and still get separate searches.
+- HTML fallback extraction is quieter and more accurate when Defuddle cannot process a page.
+
+### Added
+
+- Added XCrawl as an explicit-only search provider (`provider: "xcrawl"`) with `xcrawlApiKey` / `XCRAWL_API_KEY` credentials, client-side domain filtering, fallback titles, and retriable provider-timeout errors. Thanks to [@zeroicey](https://github.com/zeroicey) for #312 and #313.
+
+### Changed
+
+- Refined the XCrawl provider docs, parser shape, availability metadata, and focused tests.
+
+### Fixed
+
+- Expanded JSON-array strings supplied in the singular `web_search` `query` field into independent searches, with a clear no-query error for empty arrays. Thanks to [@alex-rs](https://github.com/alex-rs) for #317 and [@zeroicey](https://github.com/zeroicey) for PR #319.
+- Kept Defuddle selector-processing failures out of the Pi console and stopped treating the raw page body as a successful extraction. Thanks to [@riabiy](https://github.com/riabiy) for #315.
+- Resolved API-origin-relative XCrawl result links to absolute URLs and rejected blank result links instead of emitting fabricated source URLs. Thanks to [@zeroicey](https://github.com/zeroicey) for #318.
+
+## [0.25.0] - 2026-08-25
+
+### Highlights
+- `web_search`, `source_check`, and `fetch_content` can now use an explicit HTTP(S) proxy for restricted networks.
+- `fetch_content` now gives useful GitHub PR and issue summaries, including comments, review threads, anchors, and truncation markers.
+- Gemini users can choose browser cookie profiles more predictably and can use Google Application Default Credentials for Gemini generate-content calls.
+- Kimi Code Plan users can run explicit Kimi web searches through Pi's `kimi-coding` login.
+- HTML extraction, missing-page guidance, and stored-content lookup are more reliable.
+
+### Added
+- Added an optional `proxy` parameter to `web_search`, `source_check`, and `fetch_content`. When set, search APIs, page fetches, and content extraction use `curl` through that proxy. Localhost and `NO_PROXY` hosts still bypass the proxy. A default proxy can also be set with `"proxy"` in `~/.pi/web-search.json`. Thanks to [@mystery4f](https://github.com/mystery4f) for PR #307.
+- Added deterministic Chromium cookie selection with `browserCookies.browser` and `browserCookies.profile`; arbitrary profile paths remain unsupported. Thanks to [@lmilojevicc](https://github.com/lmilojevicc) for issue #297.
+- Added GitHub PR and issue specialization in `fetch_content`, with `gh`-first metadata, bounded REST fallback, comment anchors, review threads, truncation markers, and the `githubPrIssue.enabled` opt-out (#294).
+- Added explicit-only Kimi Code Plan search using Pi's refreshed `kimi-coding` OAuth credentials. Thanks to [@lushangkan](https://github.com/lushangkan) for PR #275.
+- Added opt-in `searchRouting.useCurrentModel` routing for automatic searches. Official OpenAI GPT Responses models can now fund Hosted Search with their current endpoint, credentials, and headers before configured fallbacks. Thanks to [@nyankosama](https://github.com/nyankosama) for PR #293.
+- Added strict Hosted Search response validation and better fallback classification for unsupported Hosted Search tools.
+- Added current-model Hosted Search routing for official `openai-codex` GPT Responses models through the Codex Responses endpoint.
+- Added Google Application Default Credentials support for Gemini generate-content calls with `geminiAuth: "adc"`. This covers Gemini search, URL context, PDF, and inline-data extraction through Vertex AI. YouTube and local video analysis still require `GEMINI_API_KEY` because they use the Gemini Files API. Thanks to [@smazurov](https://github.com/smazurov) for PR #301.
+
+### Fixed
+- Added Defuddle as a local fallback when Readability and RSC extraction cannot recover useful HTML content. Thanks to [@tobru](https://github.com/tobru) for issue #300.
+- Kept Gemini ADC config and credential errors, GitHub PR/issue REST fallback failures, and Defuddle fallback failures visible instead of silently downgrading them.
+- Pointed definitive `fetch_content` 404/410 failures to search guidance instead of provider configuration. Thanks to [@Daniishkhan](https://github.com/Daniishkhan) for PR #308.
+- Improved Gemini Web browser-cookie diagnostics so `/google-account` shows sanitized attempted browser/profile entries and distinguishes missing required cookies, password-store access, and decryption failures. Thanks to [@lmilojevicc](https://github.com/lmilojevicc) for issue #296.
+- Made `get_search_content` tolerate bridge defaults when `findText` is supplied, while preserving ordinary pagination. Thanks to [@ZacharyQin](https://github.com/ZacharyQin) for PR #295.
+
+## [0.24.2] - 2026-08-22
+
+### Highlights
+- `auto` search now uses Codex-backed OpenAI search when Pi is running a Codex model.
+- Non-Codex sessions still prefer Exa first, so zero-config search keeps its fast keyless path.
+- Gemini Web browser-cookie access is more reliable on Windows Chrome and Edge profiles.
+
+### Changed
+- Prefer Codex-backed OpenAI search in `auto` mode when the active Pi model is `openai-codex`; otherwise prefer Exa before OpenAI.
+
+### Fixed
+- Fixed Windows Gemini Web browser-cookie extraction when Chromium cookie expiry values are too large for JavaScript numbers or PowerShell DPAPI key unprotect needs encoded command transport. Thanks to [@laixuanthoi](https://github.com/laixuanthoi) for issue #290.
+
+## [0.24.1] - 2026-08-21
+
 ### Added
 - Added `pdf.maxPages` to limit Datalab, Gemini, and local PDF extraction to the first N pages. Thanks to [@jaudiger](https://github.com/jaudiger) for issue #277.
 - Added optional `openaiSearchProviders` config to choose which Pi model providers fund OpenAI `web_search`, in priority order. Thanks to [@hank-warren](https://github.com/hank-warren) for PR #276.
+- Added Windows Chrome and Edge browser-cookie support for Gemini Web. Thanks to [@laixuanthoi](https://github.com/laixuanthoi) for issue #286.
 
 ### Fixed
+- Hardened GitHub clone cache path handling. Thanks to [@spikelab](https://github.com/spikelab) for the responsible disclosure.
+- Updated the local `fetch_content` HTTP User-Agent for wider compatible content retrieval. Thanks to [@_can1357](https://x.com/_can1357) for [the User-Agent observation](https://x.com/_can1357/status/2090837707069014224).
 - Replaced inline RFC 2397 `data:` URIs in extracted page content with explicit bounded omission markers (MIME type, encoding, encoded/decoded byte counts, SHA-256 digest, `retrieval=not-retained`) before content reaches tool results, the fetch cache, or session persistence. Readable prose and Markdown image alt text are preserved; typed thumbnail/frame image blocks are unaffected. Thanks to [@bbbRye007](https://github.com/bbbRye007) for #281 and #282.
 - Detached Linux curator browser launches so `xdg-open` cannot block `web_search` until the browser exits. Thanks to [@nguyenphivn](https://github.com/nguyenphivn) for issue #279.
 - Allowed configured Firecrawl API base URLs to use loopback addresses without opening loopback for submitted fetch targets. Thanks to [@ackalker](https://github.com/ackalker) for issue #280.

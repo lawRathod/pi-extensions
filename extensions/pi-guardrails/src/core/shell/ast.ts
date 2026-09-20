@@ -8,6 +8,7 @@
 import type {
   Command,
   Program,
+  Redirect,
   SimpleCommand,
   Statement,
   Word,
@@ -65,6 +66,20 @@ export function wordHasExpansion(word: Word): boolean {
   return (word.parts ?? []).some(partHasExpansion);
 }
 
+/**
+ * Whether a redirect is a file-descriptor duplication (`2>&1`, `3<&0`,
+ * `>&-`). Bash also accepts `>& file` as a file redirect when no source fd is
+ * specified, so the operator alone is not enough to classify it.
+ */
+export function isFdDuplicationRedirect(redirect: Redirect): boolean {
+  if (redirect.op === "<&") return true;
+  if (redirect.op !== ">&") return false;
+  if (redirect.fd !== undefined) return true;
+
+  const target = wordToString(redirect.target);
+  return target === "-" || /^\d+$/.test(target);
+}
+
 function partHasExpansion(part: WordPart): boolean {
   switch (part.type) {
     case "Literal":
@@ -82,28 +97,45 @@ function partHasExpansion(part: WordPart): boolean {
 }
 
 /**
- * Walk the AST and call `callback` for every SimpleCommand found at any
- * nesting depth. Returns early if callback returns `true`.
+ * Callback invoked by {@link walkCommands}.
+ *
+ * For a simple command, `cmd` is the command and `redirects` its own
+ * redirects. Redirects attached to a compound node (`{ …; } > out`,
+ * `while … done < in`, …) don't belong to any single nested command, so they
+ * are reported once per compound node with `cmd` set to `undefined`. A
+ * callback only interested in commands keeps ignoring that call via its
+ * existing `words[0]` / `cmd.words` logic; a callback interested in redirect
+ * targets should collect from `redirects` on every call.
+ *
+ * Return `true` to stop the walk early.
  */
-export function walkCommands(
-  node: Program,
-  callback: (cmd: SimpleCommand) => boolean | undefined,
-): void {
+export type CommandCallback = (
+  cmd: SimpleCommand | undefined,
+  redirects?: Redirect[],
+) => boolean | undefined;
+
+/**
+ * Walk the AST and call `callback` for every SimpleCommand found at any
+ * nesting depth, plus once per compound node that carries its own redirects
+ * (with `cmd === undefined`). Returns early if callback returns `true`.
+ */
+export function walkCommands(node: Program, callback: CommandCallback): void {
   for (const stmt of node.body) {
     if (walkStatement(stmt, callback)) return;
   }
 }
 
-function walkStatement(
-  stmt: Statement,
-  callback: (cmd: SimpleCommand) => boolean | undefined,
-): boolean {
+function hasRedirect(redirects: Redirect[] | undefined): boolean {
+  return redirects !== undefined && redirects.length > 0;
+}
+
+function walkStatement(stmt: Statement, callback: CommandCallback): boolean {
   return walkCommand(stmt.command, callback);
 }
 
 function walkStatements(
   stmts: Statement[],
-  callback: (cmd: SimpleCommand) => boolean | undefined,
+  callback: CommandCallback,
 ): boolean {
   for (const stmt of stmts) {
     if (walkStatement(stmt, callback)) return true;
@@ -111,13 +143,15 @@ function walkStatements(
   return false;
 }
 
-function walkCommand(
-  cmd: Command,
-  callback: (cmd: SimpleCommand) => boolean | undefined,
-): boolean {
+function walkCommand(cmd: Command, callback: CommandCallback): boolean {
+  // Compound nodes may attach trailing redirects (`{ …; } > out`). Collect
+  // them before descending so the caller sees the redirect even when the
+  // callback would stop the walk inside the body.
+  const redirects = "redirects" in cmd ? cmd.redirects : undefined;
+
   switch (cmd.type) {
     case "SimpleCommand":
-      return callback(cmd) === true;
+      return callback(cmd, redirects) === true;
 
     case "Pipeline":
       return walkStatements(cmd.commands, callback);
@@ -129,9 +163,15 @@ function walkCommand(
 
     case "Subshell":
     case "Block":
+      if (hasRedirect(redirects) && callback(undefined, redirects) === true) {
+        return true;
+      }
       return walkStatements(cmd.body, callback);
 
     case "IfClause":
+      if (hasRedirect(redirects) && callback(undefined, redirects) === true) {
+        return true;
+      }
       return (
         walkStatements(cmd.cond, callback) ||
         walkStatements(cmd.then, callback) ||
@@ -140,33 +180,54 @@ function walkCommand(
 
     case "ForClause":
     case "SelectClause":
-    case "WhileClause":
+    case "WhileClause": {
+      if (hasRedirect(redirects) && callback(undefined, redirects) === true) {
+        return true;
+      }
+      const cond = "cond" in cmd ? cmd.cond : undefined;
       return (
-        ("cond" in cmd && cmd.cond
-          ? walkStatements(cmd.cond, callback)
-          : false) || walkStatements(cmd.body, callback)
+        (cond ? walkStatements(cond, callback) : false) ||
+        walkStatements(cmd.body, callback)
       );
+    }
 
     case "CaseClause":
+      if (hasRedirect(redirects) && callback(undefined, redirects) === true) {
+        return true;
+      }
       for (const item of cmd.items) {
         if (walkStatements(item.body, callback)) return true;
       }
       return false;
 
     case "FunctionDecl":
+      if (hasRedirect(redirects) && callback(undefined, redirects) === true) {
+        return true;
+      }
       return walkStatements(cmd.body, callback);
 
     case "TimeClause":
       return walkStatement(cmd.command, callback);
 
     case "CoprocClause":
+      if (hasRedirect(redirects) && callback(undefined, redirects) === true) {
+        return true;
+      }
       return walkStatement(cmd.body, callback);
 
     case "CStyleLoop":
+      if (hasRedirect(redirects) && callback(undefined, redirects) === true) {
+        return true;
+      }
       return walkStatements(cmd.body, callback);
 
-    // These don't contain nested commands we need to walk
     case "TestClause":
+      if (hasRedirect(redirects) && callback(undefined, redirects) === true) {
+        return true;
+      }
+      return false;
+
+    // These contain neither nested commands nor redirects
     case "ArithCmd":
     case "DeclClause":
     case "LetClause":

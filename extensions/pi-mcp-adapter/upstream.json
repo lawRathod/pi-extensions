@@ -1,7 +1,7 @@
 {
   "repo": "https://github.com/nicobailon/pi-mcp-adapter.git",
   "branch": "main",
-  "commit": "a3072f6494f7380cb55730ca2e6b5cc653b48672",
+  "commit": "199b4daaf708bd49e0bab9141255c3cb10f50a58",
   "files": [
     "package.json",
     "tsconfig.json",

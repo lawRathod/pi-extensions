@@ -1,7 +1,13 @@
 {
   "repo": "https://github.com/nicobailon/pi-web-access",
   "branch": "main",
-  "commit": "1584928e1b78858a5a90904732092e44b13adebd",
-  "files": ["*.ts", "package.json", "tsconfig.json", "CHANGELOG.md", "SECURITY.md"],
+  "commit": "6c5afa1d0d43eef8552284ad73f4bd9f0612a378",
+  "files": [
+    "*.ts",
+    "package.json",
+    "tsconfig.json",
+    "CHANGELOG.md",
+    "SECURITY.md"
+  ],
   "description": "Web search, URL fetching, GitHub repo cloning, PDF extraction, YouTube video understanding, and local video analysis for pi"
 }

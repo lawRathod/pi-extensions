@@ -1,7 +1,12 @@
 {
   "repo": "https://github.com/aliou/pi-guardrails",
   "branch": "main",
-  "commit": "a3da058432e33999ed368b7a2ec5c72cc2187de2",
-  "files": ["package.json", "schema.json", "src/", "extensions/"],
+  "commit": "c6a7be7db31cf8b14ec197c920e7318c83777872",
+  "files": [
+    "package.json",
+    "schema.json",
+    "src/",
+    "extensions/"
+  ],
   "description": "Safety checks for pi — file protection policies, outside-workspace path access, and dangerous-command prompts"
 }

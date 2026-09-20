@@ -10,6 +10,7 @@ const COMMAND_ENVIRONMENT_NAMES = [
 	"HOME",
 	"USER",
 	"LOGNAME",
+	"OP_SERVICE_ACCOUNT_TOKEN",
 	"PATH",
 	"LANG",
 	"LC_ALL",
@@ -32,14 +33,18 @@ export type CredentialFailureCategory =
 	| "command-empty"
 	| "command-invalid-output"
 	| "command-output-too-large"
-	| "environment-empty";
+	| "environment-empty"
+	| "oauth-credential-rejected";
 
 export class CredentialResolutionError extends Error {
 	readonly provider: string;
 	readonly category: CredentialFailureCategory;
 
 	constructor(provider: string, category: CredentialFailureCategory) {
-		const suffix = category === "command-aborted" ? "aborted" : category;
+		const suffix =
+			category === "command-aborted" ? "aborted" :
+			category === "oauth-credential-rejected" ? "OAuth token exchange rejected the credentials" :
+			category;
 		super(`${provider} credential resolution failed: ${suffix}`);
 		this.name = "CredentialResolutionError";
 		this.provider = provider;

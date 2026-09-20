@@ -1,6 +1,8 @@
-import { existsSync, readFileSync, rmSync, statSync, readdirSync, openSync, readSync, closeSync, realpathSync } from "node:fs";
+import { chmodSync, closeSync, constants as fsConstants, existsSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readSync, readdirSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { lstat as lstatAsync, open as openAsync, opendir as opendirAsync, readFile as readFileAsync, realpath as realpathAsync, rm as rmAsync, type FileHandle } from "node:fs/promises";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
-import { extname, join, resolve as resolvePath, sep as pathSep } from "node:path";
+import { createHash } from "node:crypto";
+import { basename, dirname, extname, join, resolve as resolvePath, sep as pathSep } from "node:path";
 import { activityMonitor } from "./activity.ts";
 import type { ExtractedContent } from "./extract.ts";
 import { checkGhAvailable, checkRepoSize, fetchViaApi, showGhHint } from "./github-api.ts";
@@ -28,6 +30,9 @@ const NOISE_DIRS = new Set([
 
 const MAX_INLINE_FILE_CHARS = 100_000;
 const MAX_TREE_ENTRIES = 200;
+const CLONE_RUNTIME_OWNER_FILENAME = ".owner.json";
+const CLONE_RUNTIME_OWNER_VERSION = 1;
+const MAX_CLONE_RUNTIME_OWNER_BYTES = 1024;
 
 export interface GitHubUrlInfo {
 	owner: string;
@@ -39,8 +44,21 @@ export interface GitHubUrlInfo {
 }
 
 interface CachedClone {
-	localPath: string;
+	destination: CloneDestination;
 	clonePromise: Promise<string | null>;
+}
+
+interface CloneDestination {
+	rootPath: string;
+	localPath: string;
+}
+
+interface CloneRuntimeOwner {
+	version: 1;
+	pid: number;
+	platform: string;
+	bootId?: string;
+	startTime?: string;
 }
 
 interface GitHubCloneConfig {
@@ -51,8 +69,10 @@ interface GitHubCloneConfig {
 }
 
 const cloneCache = new Map<string, CachedClone>();
+const startedCloneRuntimeCleanups = new Set<string>();
 
 let cachedConfig: GitHubCloneConfig | null = null;
+let cloneRuntime: { parentPath: string; rootPath: string } | null = null;
 
 function normalizeEnabled(value: unknown, fallback: boolean): boolean {
 	return typeof value === "boolean" ? value : fallback;
@@ -137,20 +157,21 @@ export function parseGitHubUrl(url: string): GitHubUrlInfo | null {
 	const host = parsed.hostname.toLowerCase();
 	if (host !== "github.com" && host !== "www.github.com") return null;
 
-	const segments = parsed.pathname
-		.split("/")
-		.filter(Boolean)
-		.map((segment) => {
-			try {
-				return decodeURIComponent(segment);
-			} catch {
-				return segment;
-			}
-		});
+	const segments: string[] = [];
+	for (const segment of parsed.pathname.split("/").filter(Boolean)) {
+		try {
+			segments.push(decodeURIComponent(segment));
+		} catch {
+			return null;
+		}
+	}
 	if (segments.length < 2) return null;
 
 	const owner = segments[0];
 	const repo = segments[1].replace(/\.git$/, "");
+	if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(owner)) return null;
+	if (owner.includes("--")) return null;
+	if (!/^[A-Za-z0-9._-]{1,100}$/.test(repo) || repo === "." || repo === "..") return null;
 
 	if (NON_CODE_SEGMENTS.has(segments[2]?.toLowerCase())) return null;
 
@@ -163,6 +184,7 @@ export function parseGitHubUrl(url: string): GitHubUrlInfo | null {
 	if (segments.length < 4) return null;
 
 	const ref = segments[3];
+	if (ref.length === 0 || ref.length > 1024 || /[\0-\x1f\x7f]/.test(ref)) return null;
 	const refIsFullSha = /^[0-9a-f]{40}$/.test(ref);
 	const pathParts = segments.slice(4);
 	const path = pathParts.length > 0 ? pathParts.join("/") : "";
@@ -181,9 +203,298 @@ function cacheKey(owner: string, repo: string, ref?: string): string {
 	return ref ? `${owner}/${repo}@${ref}` : `${owner}/${repo}`;
 }
 
-function cloneDir(config: GitHubCloneConfig, owner: string, repo: string, ref?: string): string {
-	const dirName = ref ? `${repo}@${ref}` : repo;
-	return join(config.clonePath, owner, dirName);
+function readLinuxBootId(): string | null {
+	try {
+		const bootId = readFileSync("/proc/sys/kernel/random/boot_id", "utf-8").trim();
+		return bootId.length > 0 ? bootId : null;
+	} catch {
+		return null;
+	}
+}
+
+async function readLinuxBootIdAsync(): Promise<string | null> {
+	try {
+		const bootId = (await readFileAsync("/proc/sys/kernel/random/boot_id", "utf-8")).trim();
+		return bootId.length > 0 ? bootId : null;
+	} catch {
+		return null;
+	}
+}
+
+interface LinuxProcessInfo {
+	state: string;
+	startTime: string | null;
+	dead: boolean;
+}
+
+function parseLinuxProcessInfo(stat: string): LinuxProcessInfo | null {
+	const closingParen = stat.lastIndexOf(") ");
+	if (closingParen < 0) return null;
+	const fields = stat.slice(closingParen + 2).trim().split(/\s+/);
+	const state = fields[0];
+	const startTime = fields[19];
+	if (!state || !startTime || !/^\d+$/.test(startTime)) return null;
+	return { state, startTime, dead: false };
+}
+
+function readLinuxProcessInfo(pid: number): LinuxProcessInfo | null {
+	try {
+		return parseLinuxProcessInfo(readFileSync(`/proc/${pid}/stat`, "utf-8"));
+	} catch (err) {
+		if (err && typeof err === "object" && "code" in err && err.code === "ENOENT") {
+			return { state: "", startTime: null, dead: true };
+		}
+		return null;
+	}
+}
+
+async function readLinuxProcessInfoAsync(pid: number): Promise<LinuxProcessInfo | null> {
+	try {
+		return parseLinuxProcessInfo(await readFileAsync(`/proc/${pid}/stat`, "utf-8"));
+	} catch (err) {
+		if (err && typeof err === "object" && "code" in err && err.code === "ENOENT") {
+			return { state: "", startTime: null, dead: true };
+		}
+		return null;
+	}
+}
+
+function currentCloneRuntimeOwner(): CloneRuntimeOwner {
+	const owner: CloneRuntimeOwner = {
+		version: CLONE_RUNTIME_OWNER_VERSION,
+		pid: process.pid,
+		platform: process.platform,
+	};
+
+	if (process.platform === "linux") {
+		const bootId = readLinuxBootId();
+		const processInfo = readLinuxProcessInfo(process.pid);
+		if (bootId && processInfo?.startTime) {
+			owner.bootId = bootId;
+			owner.startTime = processInfo.startTime;
+		}
+	}
+
+	return owner;
+}
+
+function writeCloneRuntimeOwner(runtimePath: string): void {
+	const ownerPath = join(runtimePath, CLONE_RUNTIME_OWNER_FILENAME);
+	writeFileSync(ownerPath, JSON.stringify(currentCloneRuntimeOwner()), {
+		encoding: "utf-8",
+		flag: "wx",
+		mode: 0o600,
+	});
+}
+
+function parseCloneRuntimeOwner(text: string): CloneRuntimeOwner | null {
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch {
+		return null;
+	}
+	if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+
+	const record = parsed as Record<string, unknown>;
+	if (
+		record.version !== CLONE_RUNTIME_OWNER_VERSION ||
+		typeof record.pid !== "number" ||
+		!Number.isSafeInteger(record.pid) ||
+		record.pid <= 0 ||
+		typeof record.platform !== "string" ||
+		record.platform.length === 0 ||
+		record.platform.length > 32
+	) {
+		return null;
+	}
+
+	const owner: CloneRuntimeOwner = {
+		version: CLONE_RUNTIME_OWNER_VERSION,
+		pid: record.pid,
+		platform: record.platform,
+	};
+	if (record.bootId !== undefined) {
+		if (typeof record.bootId !== "string" || record.bootId.length === 0 || record.bootId.length > 256) return null;
+		owner.bootId = record.bootId;
+	}
+	if (record.startTime !== undefined) {
+		if (typeof record.startTime !== "string" || !/^\d+$/.test(record.startTime)) return null;
+		owner.startTime = record.startTime;
+	}
+	return owner;
+}
+
+async function readCloneRuntimeOwner(runtimePath: string): Promise<CloneRuntimeOwner | null> {
+	const ownerPath = join(runtimePath, CLONE_RUNTIME_OWNER_FILENAME);
+	let file: FileHandle | undefined;
+	try {
+		const entry = await lstatAsync(ownerPath);
+		if (!entry.isFile() || entry.size > MAX_CLONE_RUNTIME_OWNER_BYTES) return null;
+		const noFollow = fsConstants.O_NOFOLLOW ?? 0;
+		file = await openAsync(ownerPath, fsConstants.O_RDONLY | noFollow);
+		const opened = await file.stat();
+		if (!opened.isFile() || opened.size > MAX_CLONE_RUNTIME_OWNER_BYTES) return null;
+		return parseCloneRuntimeOwner(await file.readFile("utf-8"));
+	} catch {
+		return null;
+	} finally {
+		if (file !== undefined) {
+			try {
+				await file.close();
+			} catch {
+				// The handle may already have been closed externally.
+			}
+		}
+	}
+}
+
+function processNonexistenceProven(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return false;
+	} catch (err) {
+		return Boolean(err && typeof err === "object" && "code" in err && err.code === "ESRCH");
+	}
+}
+
+async function cloneRuntimeOwnerIsDead(owner: CloneRuntimeOwner, bootId: string | null): Promise<boolean> {
+	if (owner.platform !== process.platform) return false;
+
+	if (process.platform !== "linux") {
+		return processNonexistenceProven(owner.pid);
+	}
+
+	// Linux PID values can be reused. Require both boot ID and proc start time
+	// before treating a runtime as owned, and preserve it when either check is
+	// unavailable.
+	if (!owner.bootId || !owner.startTime || !bootId) return false;
+	const processInfo = await readLinuxProcessInfoAsync(owner.pid);
+	if (!processInfo) return false;
+	if (processInfo.dead || processInfo.state === "Z" || processInfo.state === "X") return true;
+	return processInfo.startTime !== owner.startTime || bootId !== owner.bootId;
+}
+
+async function removeCloneRuntimeAsync(parentPath: string, runtimePath: string): Promise<void> {
+	const normalizedParentPath = resolvePath(parentPath);
+	const normalizedRuntimePath = resolvePath(runtimePath);
+	if (dirname(normalizedRuntimePath) !== normalizedParentPath || !basename(normalizedRuntimePath).startsWith("runtime-")) return;
+
+	try {
+		const realRuntimePath = await realpathAsync(normalizedRuntimePath);
+		if (dirname(realRuntimePath) !== normalizedParentPath || basename(realRuntimePath) !== basename(normalizedRuntimePath)) return;
+		const entry = await lstatAsync(normalizedRuntimePath);
+		if (entry.isSymbolicLink() || !entry.isDirectory()) return;
+		await rmAsync(normalizedRuntimePath, { recursive: true, force: true });
+	} catch {
+		// The runtime directory may already have been removed externally.
+	}
+}
+
+async function sweepStaleCloneRuntimes(parentPath: string): Promise<void> {
+	const normalizedParentPath = resolvePath(parentPath);
+	const bootId = process.platform === "linux" ? await readLinuxBootIdAsync() : null;
+	try {
+		const directory = await opendirAsync(normalizedParentPath);
+		for await (const entry of directory) {
+			if (!entry.name.startsWith("runtime-")) continue;
+			try {
+				if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+				const runtimePath = resolvePath(normalizedParentPath, entry.name);
+				if (dirname(runtimePath) !== normalizedParentPath) continue;
+				const runtimeEntry = await lstatAsync(runtimePath);
+				if (!runtimeEntry.isDirectory() || runtimeEntry.isSymbolicLink()) continue;
+				const realRuntimePath = await realpathAsync(runtimePath);
+				if (dirname(realRuntimePath) !== normalizedParentPath || basename(realRuntimePath) !== basename(runtimePath)) continue;
+				const owner = await readCloneRuntimeOwner(runtimePath);
+				if (!owner || !(await cloneRuntimeOwnerIsDead(owner, bootId))) continue;
+				await removeCloneRuntimeAsync(normalizedParentPath, runtimePath);
+			} catch {
+				// A changing or unreadable runtime must not stop the rest of the sweep.
+			}
+		}
+	} catch {
+		// Cleanup is opportunistic. A changing or unreadable cache must not stop
+		// GitHub extraction from falling back to the API.
+	}
+}
+
+function startStaleCloneRuntimeCleanup(parentPath: string): void {
+	const normalizedParentPath = resolvePath(parentPath);
+	if (startedCloneRuntimeCleanups.has(normalizedParentPath)) return;
+	startedCloneRuntimeCleanups.add(normalizedParentPath);
+	// Keep runtime creation synchronous and let the complete sweep run in the background.
+	void sweepStaleCloneRuntimes(normalizedParentPath).catch(() => {
+		// Cleanup is best effort and must never affect extraction.
+	});
+}
+
+function removeCloneRuntime(parentPath: string, runtimePath: string): void {
+	const normalizedParentPath = resolvePath(parentPath);
+	const normalizedRuntimePath = resolvePath(runtimePath);
+	if (dirname(normalizedRuntimePath) !== normalizedParentPath || !basename(normalizedRuntimePath).startsWith("runtime-")) return;
+
+	try {
+		const entry = lstatSync(normalizedRuntimePath);
+		if (entry.isSymbolicLink()) unlinkSync(normalizedRuntimePath);
+		else rmSync(normalizedRuntimePath, { recursive: true, force: true });
+	} catch {
+		// The runtime directory may already have been removed externally.
+	}
+}
+
+function getCloneRuntimeRoot(config: GitHubCloneConfig): string | null {
+	if (cloneRuntime) return cloneRuntime.rootPath;
+
+	let parentPath: string | null = null;
+	let runtimePath: string | null = null;
+	try {
+		const configuredPath = resolvePath(config.clonePath);
+		mkdirSync(configuredPath, { recursive: true });
+		parentPath = realpathSync(configuredPath);
+		startStaleCloneRuntimeCleanup(parentPath);
+		runtimePath = mkdtempSync(join(parentPath, "runtime-"));
+		chmodSync(runtimePath, 0o700);
+		const rootPath = realpathSync(runtimePath);
+		if (dirname(rootPath) !== parentPath) {
+			removeCloneRuntime(parentPath, runtimePath);
+			return null;
+		}
+		writeCloneRuntimeOwner(rootPath);
+		cloneRuntime = { parentPath, rootPath };
+		return rootPath;
+	} catch {
+		if (parentPath && runtimePath) removeCloneRuntime(parentPath, runtimePath);
+		return null;
+	}
+}
+
+function cloneDestination(config: GitHubCloneConfig, owner: string, repo: string, ref?: string): CloneDestination | null {
+	try {
+		const rootPath = getCloneRuntimeRoot(config);
+		if (!rootPath) return null;
+		const digest = createHash("sha256").update(JSON.stringify([owner, repo, ref ?? null])).digest("hex");
+		const localPath = resolvePath(rootPath, digest);
+		if (dirname(localPath) !== rootPath) return null;
+		return { rootPath, localPath };
+	} catch {
+		return null;
+	}
+}
+
+function removeCloneDestination(destination: CloneDestination): boolean {
+	const rootPath = resolvePath(destination.rootPath);
+	const localPath = resolvePath(destination.localPath);
+	if (dirname(localPath) !== rootPath || !/^[0-9a-f]{64}$/.test(basename(localPath))) return false;
+	try {
+		const entry = lstatSync(localPath);
+		if (entry.isSymbolicLink()) unlinkSync(localPath);
+		else rmSync(localPath, { recursive: true, force: true });
+		return true;
+	} catch (err) {
+		if (err && typeof err === "object" && "code" in err && err.code === "ENOENT") return true;
+		return false;
+	}
 }
 
 const PROCESS_KILL_GRACE_MS = 3000;
@@ -225,8 +536,9 @@ function terminateProcessTree(child: ChildProcess): void {
 	forceKill.unref();
 }
 
-function execClone(args: string[], localPath: string, timeoutMs: number, signal?: AbortSignal): Promise<string | null> {
+function execClone(args: string[], destination: CloneDestination, timeoutMs: number, signal?: AbortSignal): Promise<string | null> {
 	return new Promise((resolve) => {
+		const { localPath } = destination;
 		let settled = false;
 		let timeout: ReturnType<typeof setTimeout> | undefined;
 		let onAbort: (() => void) | undefined;
@@ -238,10 +550,7 @@ function execClone(args: string[], localPath: string, timeoutMs: number, signal?
 			if (signal && onAbort) signal.removeEventListener("abort", onAbort);
 
 			if (!success) {
-				try {
-					rmSync(localPath, { recursive: true, force: true });
-				} catch {
-				}
+				removeCloneDestination(destination);
 				resolve(null);
 				return;
 			}
@@ -282,14 +591,11 @@ async function cloneRepo(
 	repo: string,
 	ref: string | undefined,
 	config: GitHubCloneConfig,
+	destination: CloneDestination,
 	signal?: AbortSignal,
 ): Promise<string | null> {
-	const localPath = cloneDir(config, owner, repo, ref);
-
-	try {
-		rmSync(localPath, { recursive: true, force: true });
-	} catch {
-	}
+	const { localPath } = destination;
+	if (!removeCloneDestination(destination)) return null;
 
 	const timeoutMs = config.cloneTimeoutSeconds * 1000;
 	const hasGh = await checkGhAvailable();
@@ -297,7 +603,7 @@ async function cloneRepo(
 	if (hasGh) {
 		const args = ["gh", "repo", "clone", `${owner}/${repo}`, localPath, "--", "--depth", "1", "--single-branch"];
 		if (ref) args.push("--branch", ref);
-		return execClone(args, localPath, timeoutMs, signal);
+		return execClone(args, destination, timeoutMs, signal);
 	}
 
 	showGhHint();
@@ -306,7 +612,7 @@ async function cloneRepo(
 	const args = ["git", "clone", "--depth", "1", "--single-branch"];
 	if (ref) args.push("--branch", ref);
 	args.push(gitUrl, localPath);
-	return execClone(args, localPath, timeoutMs, signal);
+	return execClone(args, destination, timeoutMs, signal);
 }
 
 function isBinaryFile(filePath: string): boolean {
@@ -671,9 +977,15 @@ export async function extractGitHub(
 		return cachedResult;
 	}
 
-	const clonePromise = cloneRepo(owner, repo, info.ref, config, signal);
-	const localPath = cloneDir(config, owner, repo, info.ref);
-	cloneCache.set(key, { localPath, clonePromise });
+	const destination = cloneDestination(config, owner, repo, info.ref);
+	if (!destination) {
+		const apiFallback = await fetchViaApi(url, owner, repo, info);
+		if (apiFallback) activityMonitor.logComplete(activityId, 200);
+		else activityMonitor.logError(activityId, "invalid clone destination");
+		return apiFallback;
+	}
+	const clonePromise = cloneRepo(owner, repo, info.ref, config, destination, signal);
+	cloneCache.set(key, { destination, clonePromise });
 
 	const result = await clonePromise;
 	if (signal?.aborted) {
@@ -707,11 +1019,13 @@ export async function extractGitHub(
 
 export function clearCloneCache(): void {
 	for (const entry of cloneCache.values()) {
-		try {
-			rmSync(entry.localPath, { recursive: true, force: true });
-		} catch {
-		}
+		removeCloneDestination(entry.destination);
 	}
 	cloneCache.clear();
+
+	if (cloneRuntime) {
+		removeCloneRuntime(cloneRuntime.parentPath, cloneRuntime.rootPath);
+	}
+	cloneRuntime = null;
 	cachedConfig = null;
 }

@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { dirname } from "node:path"
 
-import { MODEL_EFFORT_OVERRIDES, MODEL_INPUT_MODALITY_OVERRIDES } from "./commandcode-catalog-overrides.ts"
+import { MODEL_EFFORT_OVERRIDES } from "./commandcode-catalog-overrides.ts"
 import {
   MODEL_EFFORTS as CATALOG_MODEL_EFFORTS,
   MODEL_INPUT_MODALITIES,
@@ -31,16 +31,29 @@ export type CommandCodeApi = "openai-completions" | "anthropic-messages"
 
 const TEXT_INPUT_ONLY = ["text"] as const
 
-export function inputModalitiesForModel(modelId: string): readonly CommandCodeInputType[] {
-  // Overrides win over the generated catalog: they only exist for models the
-  // bundled catalog predates (see commandcode-catalog-overrides.ts).
-  return (
-    MODEL_INPUT_MODALITY_OVERRIDES[modelId] ?? MODEL_INPUT_MODALITIES[modelId] ?? TEXT_INPUT_ONLY
-  )
+/**
+ * Input modalities for a model.
+ *
+ * The generated catalog is a snapshot of one Command Code CLI release, so a
+ * model published afterwards is absent and silently degrades to text-only.
+ * The host's resolved `model.input` is authoritative when present: it already
+ * carries `models.yml`/`models.json` overrides and is what decides whether the
+ * user can attach an image at all.
+ */
+export function inputModalitiesForModel(
+  modelId: string,
+  hostInput?: readonly string[],
+): readonly CommandCodeInputType[] {
+  if (hostInput && hostInput.length > 0) {
+    return hostInput.filter(
+      (input): input is CommandCodeInputType => input === "text" || input === "image",
+    )
+  }
+  return MODEL_INPUT_MODALITIES[modelId] ?? TEXT_INPUT_ONLY
 }
 
-export function modelSupportsImageInput(modelId: string): boolean {
-  return inputModalitiesForModel(modelId).includes("image")
+export function modelSupportsImageInput(modelId: string, hostInput?: readonly string[]): boolean {
+  return inputModalitiesForModel(modelId, hostInput).includes("image")
 }
 
 export type PiThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
@@ -92,9 +105,7 @@ export function thinkingMetadataForModel(modelId: string): ThinkingMetadata | un
 }
 
 function isReasoningModel(modelId: string): boolean {
-  // An override carrying selectable efforts is a reasoning model by definition,
-  // so manual overrides need no matching entry in the generated catalog.
-  return MODEL_REASONING[modelId] === true || MODEL_EFFORTS[modelId] !== undefined
+  return MODEL_REASONING[modelId] === true
 }
 
 function maxOutputTokensForModel(modelId: string, contextLength: number): number {

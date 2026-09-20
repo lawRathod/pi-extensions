@@ -1,6 +1,6 @@
 {
   "name": "@aliou/pi-guardrails",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "license": "MIT",
   "type": "module",
   "private": false,
@@ -38,7 +38,7 @@
   ],
   "dependencies": {
     "@aliou/pi-utils-settings": "^0.19.1",
-    "@aliou/sh": "^0.2.2"
+    "@aliou/sh": "^0.3.2"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",

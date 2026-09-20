@@ -72,6 +72,8 @@ export interface ModelLike {
   provider: string
   maxTokens: number
   cost: ModelCost
+  /** Input modalities the host advertises, including `models.yml`/`models.json` overrides. */
+  input?: readonly string[]
   reasoning?: boolean
   thinkingLevelMap?: Partial<Record<string, string | null>>
   thinking?: {

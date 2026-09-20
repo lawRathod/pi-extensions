@@ -1,7 +1,6 @@
 import type { ProviderModelConfig } from "@earendil-works/pi-coding-agent";
 import {
   buildNeuralwattFamily,
-  FLEX_COST_MULTIPLIER,
   type NeuralwattModelFamily,
   type NeuralwattVariantSpec,
 } from "./build";
@@ -31,7 +30,7 @@ const DEEPSEEK_V4_FLASH: NeuralwattModelFamily = {
 // `max` and `none`; every non-`none` request resolves to `max` upstream.
 // It does not reason by default (`default_enabled: false`), but the model
 // can produce reasoning traces when asked. See
-// https://portal.neuralwatt.com/docs/api/chat-completions#reasoning-effort
+// https://docs.neuralwatt.com/api/chat-completions.md
 const GEMMA_4: NeuralwattModelFamily = {
   cost: { input: 0.144, output: 0.42, cacheRead: 0.0144 },
   vision: true,
@@ -41,25 +40,23 @@ const GEMMA_4: NeuralwattModelFamily = {
   },
 };
 
-// ZhipuAI. GLM-5.2 natively supports `high` and `max` reasoning efforts;
-// `xhigh` is an unsupported hole between them. Pi's `max` level (0.80.6) maps
-// to GLM's top tier.
-const GLM_5_2: NeuralwattModelFamily = {
-  cost: { input: 1.45, output: 4.5, cacheRead: 0.145 },
-  vision: false,
-  reasoningMetadata: {
-    supported_efforts: ["max", "high", "none"],
-    mandatory: false,
-  },
-};
-
-// ZhipuAI. GLM-5.3 ships as a GLM-5.2 weight swap in gated preview, with
-// GLM-5.2 pricing parity (per the API metadata; review at launch). Unlike
-// 5.2, reasoning is mandatory and `none` is not offered: efforts are
-// max/high/low (default max).
+// ZhipuAI. GLM-5.3 has mandatory reasoning and `none` is not offered:
+// efforts are max/high/low (default max).
 const GLM_5_3: NeuralwattModelFamily = {
   cost: { input: 1.45, output: 4.5, cacheRead: 0.145 },
   vision: false,
+  reasoningMetadata: {
+    supported_efforts: ["max", "high", "low"],
+    mandatory: true,
+  },
+};
+
+// ZhipuAI. GLM-5.3 Flash is the small GLM-5.3 tier: vision-capable, much
+// cheaper than the flagship, with the same mandatory max/high/low reasoning
+// contract as GLM-5.3.
+const GLM_5_3_FLASH: NeuralwattModelFamily = {
+  cost: { input: 0.15, output: 0.5, cacheRead: 0.03 },
+  vision: true,
   reasoningMetadata: {
     supported_efforts: ["max", "high", "low"],
     mandatory: true,
@@ -99,6 +96,18 @@ const QWEN_3_6_35B: NeuralwattModelFamily = {
   },
 };
 
+// Qwen. Qwen 3.8 27B tops out at `xhigh` (its default) and also supports
+// `medium`, `low`, and `none`; there is no `max` effort. Reasoning is on by
+// default but can be disabled.
+const QWEN_3_8_27B: NeuralwattModelFamily = {
+  cost: { input: 0.45, output: 3.2, cacheRead: 0.25 },
+  vision: true,
+  reasoningMetadata: {
+    supported_efforts: ["xhigh", "medium", "low", "none"],
+    mandatory: false,
+  },
+};
+
 const FAMILIES: [NeuralwattModelFamily, NeuralwattVariantSpec[]][] = [
   [
     DEEPSEEK_V4_FLASH,
@@ -116,7 +125,14 @@ const FAMILIES: [NeuralwattModelFamily, NeuralwattVariantSpec[]][] = [
         contextWindow: 1048560,
         maxOutputTokens: 65536,
         reasoning: true,
-        costMultiplier: FLEX_COST_MULTIPLIER,
+        costMultiplier: 0.65,
+      },
+      {
+        id: "deepseek-v4-flash-speed",
+        name: "DeepSeek V4 Flash (Speed)",
+        contextWindow: 1048560,
+        maxOutputTokens: 65536,
+        reasoning: true,
       },
     ],
   ],
@@ -133,114 +149,69 @@ const FAMILIES: [NeuralwattModelFamily, NeuralwattVariantSpec[]][] = [
     ],
   ],
   [
-    GLM_5_2,
-    [
-      {
-        id: "glm-5.2",
-        name: "GLM-5.2",
-        contextWindow: 1048560,
-        maxOutputTokens: null,
-        reasoning: true,
-      },
-      {
-        // GLM-5.2 Fast pins thinking off by default, but keeps the parent's
-        // full reasoning contract (`high`/`max`/`none`): sending
-        // `reasoning_effort` re-enables thinking for that request.
-        id: "glm-5.2-fast",
-        name: "GLM-5.2 (fast)",
-        contextWindow: 1048560,
-        maxOutputTokens: null,
-        reasoning: true,
-      },
-      {
-        id: "glm-5.2-flex",
-        name: "GLM-5.2 (flex)",
-        contextWindow: 1048560,
-        maxOutputTokens: null,
-        reasoning: true,
-        costMultiplier: FLEX_COST_MULTIPLIER,
-      },
-      {
-        id: "glm-5.2-short",
-        name: "GLM-5.2 Short",
-        contextWindow: 199984,
-        maxOutputTokens: 32000,
-        reasoning: true,
-      },
-      {
-        // Short/fast: pins thinking off but keeps the parent reasoning
-        // contract, like glm-5.2-fast.
-        id: "glm-5.2-short-fast",
-        name: "GLM-5.2 (short, fast)",
-        contextWindow: 199984,
-        maxOutputTokens: 32000,
-        reasoning: true,
-      },
-      {
-        id: "glm-5.2-short-flex",
-        name: "GLM-5.2 (short, flex)",
-        contextWindow: 199984,
-        maxOutputTokens: 32000,
-        reasoning: true,
-        costMultiplier: FLEX_COST_MULTIPLIER,
-      },
-      {
-        // Short/fast/flex: pins thinking off but keeps the parent reasoning
-        // contract, like glm-5.2-fast.
-        id: "glm-5.2-short-fast-flex",
-        name: "GLM-5.2 (short, fast, flex)",
-        contextWindow: 199984,
-        maxOutputTokens: 32000,
-        reasoning: true,
-        costMultiplier: FLEX_COST_MULTIPLIER,
-      },
-    ],
-  ],
-  [
     GLM_5_3,
     [
       {
         id: "glm-5.3",
-        name: "GLM-5.3",
+        name: "GLM 5.3",
         contextWindow: 1048560,
         maxOutputTokens: null,
         reasoning: true,
       },
+      {
+        id: "glm-5.3-flex",
+        name: "GLM 5.3 (flex)",
+        contextWindow: 1048560,
+        maxOutputTokens: null,
+        reasoning: true,
+        costMultiplier: 0.65,
+      },
     ],
   ],
-  // The kimi-k3 endpoint rejects anything above 327,680 total tokens with
-  // `400: max_completion_tokens is too large … supports at most 327680
-  // completion tokens` (verified at runtime), even though the API advertises
-  // `max_model_len: 1048560` with a null output cap for the whole family.
-  // The -fast/-flex endpoints don't enforce any cap server-side yet (they
-  // accept max_completion_tokens beyond the advertised window), but they are
-  // the same K3 deployment and are expected to share the 327,680 limit, so
-  // all three variants are pinned to it. The drift check in models.test.ts
-  // whitelists this divergence via CONTEXT_WINDOW_OVERRIDES.
+  [
+    GLM_5_3_FLASH,
+    [
+      {
+        id: "glm-5.3-flash",
+        name: "GLM-5.3 Flash",
+        contextWindow: 1048560,
+        maxOutputTokens: null,
+        reasoning: true,
+      },
+      {
+        id: "glm-5.3-flash-flex",
+        name: "GLM-5.3 Flash (flex)",
+        contextWindow: 1048560,
+        maxOutputTokens: null,
+        reasoning: true,
+        costMultiplier: 0.65,
+      },
+    ],
+  ],
   [
     KIMI_K3,
     [
       {
         id: "kimi-k3",
         name: "Kimi K3",
-        contextWindow: 327680,
-        maxOutputTokens: 327680,
+        contextWindow: 1048560,
+        maxOutputTokens: null,
         reasoning: true,
       },
       {
         id: "kimi-k3-fast",
         name: "Kimi K3 Fast",
-        contextWindow: 327680,
-        maxOutputTokens: 327680,
+        contextWindow: 1048560,
+        maxOutputTokens: null,
         reasoning: false,
       },
       {
         id: "kimi-k3-flex",
         name: "Kimi K3 (flex)",
-        contextWindow: 327680,
-        maxOutputTokens: 327680,
+        contextWindow: 1048560,
+        maxOutputTokens: null,
         reasoning: true,
-        costMultiplier: FLEX_COST_MULTIPLIER,
+        costMultiplier: 0.65,
       },
     ],
   ],
@@ -269,7 +240,7 @@ const FAMILIES: [NeuralwattModelFamily, NeuralwattVariantSpec[]][] = [
         contextWindow: 262128,
         maxOutputTokens: null,
         reasoning: true,
-        costMultiplier: FLEX_COST_MULTIPLIER,
+        costMultiplier: 0.65,
       },
     ],
   ],
@@ -290,16 +261,43 @@ const FAMILIES: [NeuralwattModelFamily, NeuralwattVariantSpec[]][] = [
         maxOutputTokens: null,
         reasoning: false,
       },
+      {
+        id: "qwen3.6-35b-flex",
+        name: "Qwen3.6 35B (flex)",
+        contextWindow: 131056,
+        maxOutputTokens: null,
+        reasoning: true,
+        costMultiplier: 0.65,
+      },
+    ],
+  ],
+  [
+    QWEN_3_8_27B,
+    [
+      {
+        id: "qwen-3.8-27b",
+        name: "Qwen 3.8 27B",
+        contextWindow: 262128,
+        maxOutputTokens: 131072,
+        reasoning: true,
+      },
+      {
+        id: "qwen-3.8-27b-flex",
+        name: "Qwen 3.8 27B (flex)",
+        contextWindow: 262128,
+        maxOutputTokens: 131072,
+        reasoning: true,
+        costMultiplier: 0.65,
+      },
     ],
   ],
 ];
 
 // `-flex` variants are the Flex tier: same model, context window, output cap,
-// and prompt cache as the standard variant, admitted on spare capacity.
-// The API now advertises flex variants but lists them at standard pricing;
-// the 35% Flex discount is a billing-time concept applied here via
-// `costMultiplier` rather than reflected in the catalog metadata.
-// https://portal.neuralwatt.com/docs/guides/flex-tier
+// and prompt cache as the standard variant, admitted on spare capacity. The
+// API lists them at discounted prices; the fallback mirrors that with
+// `costMultiplier: 0.65` per variant.
+// https://docs.neuralwatt.com/guides/flex-tier.md
 
 export const NEURALWATT_MODELS: ProviderModelConfig[] = FAMILIES.flatMap(
   ([family, variants]) => buildNeuralwattFamily(family, variants),

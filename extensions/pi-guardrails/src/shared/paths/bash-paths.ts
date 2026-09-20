@@ -12,11 +12,12 @@ import {
   hasShellExpansion,
   isImplausibleLocalPath,
 } from "../../core/paths/plausibility";
-import { walkCommands, wordToString } from "../../core/shell/ast";
 import {
-  classifyCommandArgs,
-  isInterpreterCommand,
-} from "../../core/shell/command-args";
+  isFdDuplicationRedirect,
+  walkCommands,
+  wordToString,
+} from "../../core/shell/ast";
+import { classifyCommandArgs } from "../../core/shell/command-args";
 import { expandGlob, hasGlobChars } from "../glob";
 
 async function expandCandidate(
@@ -66,21 +67,19 @@ export async function extractBashPathCandidates(
     forcePath = false,
     commandName?: string,
     commandArgs: string[] = [],
+    programText = false,
   ): Promise<void> => {
     if (!token || token.startsWith("-")) return;
     if (!forcePath && !maybePathLike(token)) return;
     if (!forcePath && hasNonPathShape(token)) return;
 
-    // Suppression is skipped whenever the filesystem cannot settle the
-    // question: the command creates missing parents itself (known
-    // path-creating commands, looked up through wrappers such as `sudo` or
-    // `npx`), the command runs an arbitrary program, or the token still
-    // contains an unexpanded shell reference.
+    // Suppression is skipped when the token may create its missing parent,
+    // or when shell expansion means the filesystem cannot settle it yet.
     const skipImplausible =
       forcePath ||
       hasShellExpansion(token) ||
       commandCreatesPaths(commandName, commandArgs) ||
-      (commandName !== undefined && isInterpreterCommand(commandName));
+      programText;
 
     const expanded = await expandCandidate(token, cwd);
     for (const file of expanded) {
@@ -105,8 +104,14 @@ export async function extractBashPathCandidates(
     const { ast } = parse(command);
     const pending: Promise<void>[] = [];
 
-    walkCommands(ast, (cmd) => {
-      const words = (cmd.words ?? []).map(wordToString);
+    walkCommands(ast, (cmd, redirects) => {
+      for (const redir of redirects ?? []) {
+        // Fd duplications (`2>&1`, `<&-`) have no filesystem target.
+        // `&>`/`&>>` redirect stdout AND stderr to a real path — keep those.
+        if (isFdDuplicationRedirect(redir)) continue;
+        pending.push(addCandidate(wordToString(redir.target), true));
+      }
+      const words = (cmd?.words ?? []).map(wordToString);
       const commandName = words[0];
       if (commandName) {
         for (const arg of classifyCommandArgs(commandName, words.slice(1))) {
@@ -132,6 +137,7 @@ export async function extractBashPathCandidates(
                 arg.forcePath,
                 commandName,
                 words.slice(1),
+                arg.programText,
               ),
             );
           }
@@ -148,9 +154,6 @@ export async function extractBashPathCandidates(
           if (word.startsWith("-") && word !== "-" && word !== "--") continue;
           pending.push(addCandidate(word));
         }
-      }
-      for (const redir of cmd.redirects ?? []) {
-        pending.push(addCandidate(wordToString(redir.target), true));
       }
       return false;
     });

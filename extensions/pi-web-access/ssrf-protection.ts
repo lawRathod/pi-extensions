@@ -1,7 +1,7 @@
 import { lookup as dnsLookup } from "node:dns/promises";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import net from "node:net";
-import { getWebSearchConfigPath } from "./utils.ts";
+import { getActiveProxy, getWebSearchConfigPath, hasScopedProxyDecision, isProxyBypassedUrl } from "./utils.ts";
 
 const DEFAULT_MAX_REDIRECTS = 5;
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
@@ -232,6 +232,7 @@ export async function fetchRemoteUrl(
 	const fetchImpl = options.fetch ?? fetch;
 	const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS;
 	let current = await validateRemoteUrl(url, options);
+	const configuredOrigin = current.origin;
 	let requestInit = init;
 
 	for (let redirects = 0; redirects <= maxRedirects; redirects++) {
@@ -243,7 +244,10 @@ export async function fetchRemoteUrl(
 		if (redirects === maxRedirects) throw new Error(`Too many redirects fetching ${current.toString()}`);
 
 		const from = current;
-		current = await validateRemoteUrl(new URL(location, current), options);
+		const next = new URL(location, current);
+		// allowLoopback exempts an explicitly configured endpoint, never a redirect target: a loopback
+		// base must not be able to pivot the request onto a different loopback origin.
+		current = await validateRemoteUrl(next, next.origin === configuredOrigin ? options : { ...options, allowLoopback: false });
 		if (response.status === 303 || ((response.status === 301 || response.status === 302) && requestInit.method?.toUpperCase() === "POST")) {
 			const { body: _body, ...nextInit } = requestInit;
 			requestInit = { ...nextInit, method: "GET" };
@@ -329,6 +333,9 @@ function hostnameMatchesNoProxy(hostname: string, port: string, entry: string): 
 
 function shouldTrustEnvProxy(url: URL, enabled: boolean): boolean {
 	if (!enabled || !getProxyForProtocol(url.protocol)) return false;
+	if (hasScopedProxyDecision()) return false;
+	const activeProxy = getActiveProxy();
+	if (activeProxy && !isProxyBypassedUrl(url)) return false;
 	const hostname = normalizeHostname(url.hostname);
 	const port = url.port || (url.protocol === "https:" ? "443" : "80");
 	const noProxy = process.env.NO_PROXY || process.env.no_proxy || "";

@@ -1,5 +1,6 @@
 import http, { type IncomingMessage, type ServerResponse } from "node:http";
 import { generateCuratorPage } from "./curator-page.ts";
+import type { ProviderAvailability } from "./gemini-search.ts";
 import type { SummaryMeta } from "./summary-review.ts";
 import { resolveCuratorNetworkConfig } from "./utils.ts";
 
@@ -16,9 +17,11 @@ type CuratorStoredEvent =
 
 export interface CuratorServerOptions {
 	queries: string[];
+	/** First index available to searches added while initial results are still streaming. */
+	initialResultIndexCapacity?: number;
 	sessionToken: string;
 	timeout: number;
-	availableProviders: { all: boolean; openai: boolean; brave: boolean; parallel: boolean; "parallel-mcp": boolean; tinyfish: boolean; search1api: boolean; searchinfinity: boolean; querit: boolean; tavily: boolean; firecrawl: boolean; jina: boolean; serpdive: boolean; kagi: boolean; bocha: boolean; ollama: boolean; searxng: boolean; duckduckgo: boolean; perplexity: boolean; exa: boolean; gemini: boolean; anysearch: boolean; xai: boolean; brightdata: boolean; serpbase: boolean; serper: boolean; valyu: boolean };
+	availableProviders: ProviderAvailability;
 	defaultProvider: string;
 	searchProvider: string;
 	summaryModels: Array<{ value: string; label: string }>;
@@ -38,7 +41,7 @@ export interface IndexedCuratorSearchEntry extends CuratorSearchEntry {
 }
 
 export interface CuratorServerCallbacks {
-	onSubmit: (payload: { selectedQueryIndices: number[]; summary?: string; summaryMeta?: SummaryMeta; rawResults?: boolean }) => void;
+	onSubmit: (payload: { selectedQueryIndices: number[]; summary?: string; summaryMeta?: SummaryMeta; rawResults?: boolean; autoApproveRemainingSearches?: boolean }) => void;
 	onCancel: (reason: "user" | "timeout" | "stale") => void;
 	onProviderChange: (provider: string) => void;
 	onAddSearch: (query: string, provider?: string) => Promise<CuratorSearchEntry[]>;
@@ -193,6 +196,7 @@ export function startCuratorServer(
 ): Promise<CuratorServerHandle> {
 	const {
 		queries,
+		initialResultIndexCapacity,
 		sessionToken,
 		timeout,
 		availableProviders,
@@ -212,7 +216,7 @@ export function startCuratorServer(
 	let sseResponse: ServerResponse | null = null;
 	const streamedEventsByResultIndex = new Map<number, CuratorStoredEvent>();
 	let searchStreamDone = queries.length === 0;
-	let nextQueryIndex = queries.length;
+	let nextQueryIndex = Math.max(queries.length, initialResultIndexCapacity ?? queries.length);
 	let summarizeAbortController: AbortController | null = null;
 	let summarizeRequestSeq = 0;
 
@@ -292,11 +296,15 @@ export function startCuratorServer(
 		if (provider === "perplexity") return availableProviders.perplexity;
 		if (provider === "exa") return availableProviders.exa;
 		if (provider === "gemini") return availableProviders.gemini;
+		if (provider === "kimi") return availableProviders.kimi;
 		if (provider === "anysearch") return availableProviders.anysearch;
+		if (provider === "xcrawl") return availableProviders.xcrawl;
 		if (provider === "xai") return availableProviders.xai;
+		if (provider === "mistral") return availableProviders.mistral;
 		if (provider === "brightdata") return availableProviders.brightdata;
 		if (provider === "serpbase") return availableProviders.serpbase;
 		if (provider === "serper") return availableProviders.serper;
+		if (provider === "serply") return availableProviders.serply;
 		if (provider === "valyu") return availableProviders.valyu;
 		return false;
 	}
@@ -635,12 +643,14 @@ export function startCuratorServer(
 					return;
 				}
 				const rawResults = (body as { rawResults?: unknown }).rawResults === true;
+				const autoApproveRemainingSearches = (body as { autoApproveRemainingSearches?: unknown }).autoApproveRemainingSearches === true;
 				sendJson(res, 200, { ok: true });
 				setImmediate(() => callbacks.onSubmit({
 					selectedQueryIndices: parsed.indices,
 					...(summary !== undefined ? { summary } : {}),
 					...(summaryMeta !== undefined ? { summaryMeta } : {}),
 					rawResults,
+					...(autoApproveRemainingSearches ? { autoApproveRemainingSearches: true } : {}),
 				}));
 				return;
 			}

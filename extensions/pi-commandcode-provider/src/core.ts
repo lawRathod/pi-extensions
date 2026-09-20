@@ -540,7 +540,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
         const reasoningEffort = mappedReasoningEffort(model, options)
         const timeoutMs = options?.timeoutMs
 
-        const allowImages = modelSupportsImageInput(model.id)
+        const allowImages = modelSupportsImageInput(model.id, model.input)
         if (!allowImages) assertTextOnlyMessages(context.messages)
 
         let body: unknown = {
@@ -561,7 +561,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
           params: {
             model: model.id,
             messages: messagesToCC(context.messages, { allowImages }),
-            tools: toolsToJson(context.tools),
+            tools: toolsToJson(context.tools, model.id),
             system: systemPromptToText(context.systemPrompt),
             max_tokens: generateMaxTokens(model, options),
             stream: true,
@@ -708,6 +708,7 @@ export function createStreamCommandCode(deps: CoreDependencies) {
                 if (controller.signal.aborted) throw abortError("Aborted")
                 const { done, value } = await raceAbort(reader.read(), attemptController.signal)
                 if (done) {
+                  clearAttemptTimeout()
                   if (buffer.trim()) handleEvent(parseStreamEventLine(buffer))
                   if (!finished) {
                     throw new Error(
@@ -715,6 +716,13 @@ export function createStreamCommandCode(deps: CoreDependencies) {
                     )
                   }
                   break
+                }
+                if (timeoutMs !== undefined) {
+                  clearAttemptTimeout()
+                  attemptTimeoutId = setTimeout(() => {
+                    attemptTimedOut = true
+                    attemptController.abort()
+                  }, timeoutMs)
                 }
                 if (controller.signal.aborted) throw abortError("Aborted")
 

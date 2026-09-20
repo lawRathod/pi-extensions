@@ -1,6 +1,11 @@
-import { SdkError, SdkErrorCode, SdkHttpError } from "@modelcontextprotocol/client";
+import { SdkError, SdkErrorCode } from "@modelcontextprotocol/client";
 import { isServerDisabled, type ServerDefinition } from "./types.ts";
-import type { McpServerManager, ServerConnection } from "./server-manager.ts";
+import {
+  isTransientHttpConnectError,
+  isUnauthorizedHttpError,
+  type McpServerManager,
+  type ServerConnection,
+} from "./server-manager.ts";
 import { hasPendingAuth } from "./mcp-auth-flow.ts";
 import { logger } from "./logger.ts";
 import { formatTerminalError, parallelLimit, sanitizeTerminalText } from "./utils.ts";
@@ -223,7 +228,7 @@ export class McpLifecycleManager {
         await this.handleSupersededConnection(name, definition, connection, signal, retrySuperseded);
         return;
       }
-      if (!shouldReconnectAfterRefresh(error, hadSessionId)) {
+      if (!shouldReconnectAfterRefresh(error, hadSessionId, definition)) {
         this.reportConnectionFailure(name, definition, error, "refresh", connection);
         return;
       }
@@ -348,6 +353,12 @@ export class McpLifecycleManager {
     return Date.now() >= retry.nextAttemptAt;
   }
 
+  private connectionFailureTarget(action: "refresh" | "reconnect" | "publish", name: string): string {
+    if (action === "reconnect") return `reconnect to ${name}`;
+    if (action === "publish") return `publish metadata for ${name}`;
+    return `refresh ${name}`;
+  }
+
   private reportConnectionFailure(
     name: string,
     definition: ServerDefinition,
@@ -357,20 +368,12 @@ export class McpLifecycleManager {
   ): void {
     if (!this.recordRetry(name, definition, connection)) return;
     this.onReconnectFailure?.(name, error);
-    if (
-      (error instanceof SdkHttpError && error.status === 503)
-      || (error instanceof Error && error.cause instanceof SdkHttpError && error.cause.status === 503)
-    ) return;
+    if (isTransientHttpConnectError(error)) return;
     const retry = this.retryStates.get(name);
     if (retry?.warningReported) return;
     if (retry) retry.warningReported = true;
     const message = error instanceof Error ? error.message : String(error);
-    const target = action === "reconnect"
-      ? `reconnect to ${name}`
-      : action === "publish"
-        ? `publish metadata for ${name}`
-        : `refresh ${name}`;
-    console.error(`MCP: Failed to ${target}: ${sanitizeTerminalText(message)}`);
+    console.error(`MCP: Failed to ${this.connectionFailureTarget(action, name)}: ${sanitizeTerminalText(message)}`);
   }
 
   private deferRefreshTimeout(
@@ -441,8 +444,14 @@ export class McpLifecycleManager {
   }
 }
 
-function shouldReconnectAfterRefresh(error: unknown, hadSessionId: boolean): boolean {
+function shouldReconnectAfterRefresh(
+  error: unknown,
+  hadSessionId: boolean,
+  definition: ServerDefinition,
+): boolean {
   if (isTerminatedSession(error, hadSessionId)) return true;
+  // Reconnect baked bearer sources so connect-time resolution runs again.
+  if (definition.auth === "bearer" && isUnauthorizedHttpError(error)) return true;
   return error instanceof SdkError
     && (error.code === SdkErrorCode.NotConnected || error.code === SdkErrorCode.ConnectionClosed);
 }

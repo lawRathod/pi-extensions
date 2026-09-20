@@ -27,6 +27,7 @@ import {
 } from "./agent-types.js";
 import { extractText } from "../prompt/context.js";
 import { readDefaultTools } from "../pi-settings.js";
+import { resolveThinkingLevel } from "../models/thinking-resolution.js";
 import type { AgentUsage } from "./usage.js";
 import { findModelInRegistry, GIT_EXEC_TIMEOUT_MS } from "../utils.js";
 import { DEFAULT_AGENTS } from "./default-agents.js";
@@ -37,6 +38,7 @@ import type { SubagentType, SystemPromptMode } from "./types.js";
 import { getStore, enterSubagentSpawn, exitSubagentSpawn } from "../shell.js";
 import { DEFAULT_GRACE_TURNS, CUSTOM_PROMPT_PATH } from "../config/config-io.js";
 import { patchRetryClassifier } from "./stream-retry.js";
+import { applyOutputLimit, resolveOutputLimit } from "./max-tokens-field.js";
 
 // Cache: extension path → unscoped package name (lowercased), or undefined if not found
 const packageNameCache = new Map<string, string | undefined>();
@@ -512,7 +514,17 @@ async function initSession(
   defaultTools: string[] | undefined,
 ): Promise<AgentSession> {
   const model = options.model ?? findModelInRegistry(agentConfig?.model, ctx.modelRegistry, ctx.model);
-  const thinkingLevel = options.thinkingLevel ?? agentConfig?.thinkingLevel;
+  // Per-model comes from the same trust-gated instance the session is created
+  // with, so the project-trust gate applies to the read identically. When
+  // every source is unset nothing is passed and pi's own fallback applies
+  // (defaultThinkingLevel setting → medium, clamped to the model).
+  const perModelLevel = model ? settingsManager.getModelThinkingLevel(model.provider, model.id) : undefined;
+  const thinkingLevel = resolveThinkingLevel({
+    explicit: options.thinkingLevel,
+    frontmatter: agentConfig?.thinkingLevel,
+    perModel: perModelLevel,
+    defaultThinking: getStore().agent.defaultThinking,
+  });
   const agentDir = getAgentDir();
   const sessionOpts: Parameters<typeof createAgentSession>[0] = {
     cwd,
@@ -532,15 +544,29 @@ async function initSession(
   const session = result.session;
   patchRetryClassifier(session);
 
-  // Inject max_tokens into provider payloads; spawn-time value wins over agent config.
+  // Inject the output-limit field into provider payloads; spawn-time value wins
+  // over agent config. Location per request, per pi's per-API algorithm:
+  // openai-completions follows the compat chain (explicit
+  // model.compat.maxTokensField, else provider/URL detection, else
+  // max_completion_tokens); the OpenAI Responses family uses max_output_tokens
+  // clamped to pi's minimum of 16 (openai-responses only when the model
+  // hasn't disabled compat.supportsMaxOutputTokens); anthropic uses
+  // top-level max_tokens; bedrock nests the cap at inferenceConfig.maxTokens;
+  // both google APIs nest it at config.maxOutputTokens; mistral uses
+  // top-level maxTokens; pi-messages nests it at options.maxTokens.
   const maxTokens = options.maxTokens ?? agentConfig?.maxTokens;
   if (maxTokens != null && maxTokens > 0 && model) {
-    const field = (model.compat as any)?.maxTokensField ?? "max_tokens";
     const origOnPayload = session.agent.onPayload;
     session.agent.onPayload = async (payload, m) => {
       const applied = origOnPayload ? ((await origOnPayload(payload, m)) ?? payload) : payload;
-      const obj = typeof applied === "object" && applied && !Array.isArray(applied) ? applied : {};
-      return { ...obj, [field]: maxTokens };
+      // Resolved per request so a mid-run setModel stays in sync with pi
+      // instead of desyncing on a captured field. Undefined means pi sends
+      // no output-limit field for this model; the hook must not inject one.
+      // Post-build overwrite by design (as in the prior fix): pi's context
+      // clamp and thinking-budget adjust already ran on the model default.
+      const limit = resolveOutputLimit(m, maxTokens);
+      if (!limit) return applied;
+      return applyOutputLimit(applied, limit);
     };
   }
 

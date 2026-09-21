@@ -233,3 +233,20 @@ than missing extensions.
   `test/abort-pauses.test.cjs`).
   Source: <https://github.com/Michaelliv/pi-goal> (commit `3f100be`,
   v0.1.7, MIT). Reviewed: 2026-09-19.
+- `pi-btw/` — Parallel side conversations via `/btw` in a real pi
+  sub-session (its own `read`/`bash`/`edit`/`write` tools), with a
+  focused overlay, thread state persisted as hidden session entries,
+  BTW-only model/thinking overrides, and `/btw:inject` /`/btw:summarize`
+  handoff back to the main agent. Ships the `btw` skill (in-folder
+  `skills/btw/`, loaded when installed as a pi package) and the upstream
+  README + overlay screenshot. **No network calls of any kind**, no
+  `eval`/`new Function`/`vm`, no `child_process`, no filesystem I/O —
+  sub-sessions are in-memory (`SessionManager.inMemory()`) and built
+  from `ctx.sessionManager` + `ctx.modelRegistry`. Only env read is
+  `PI_BTW_FOCUS_KEYS` (shortcut remap). Sole `plugin`-wide hooks:
+  `context` (strips its own BTW notes from main-session messages) and
+  `tool_call` is never intercepted. No `setStatus`, so no pi-grid-footer
+  change needed. Upstream test suite (91 tests, vitest) passes at this
+  commit; tests are not copied here. Source:
+  <https://github.com/dbachelder/pi-btw> (commit `1b599b2`, v0.5.0, MIT).
+  Reviewed: 2026-09-21.

@@ -1,0 +1,15 @@
+{
+  "repo": "https://github.com/dbachelder/pi-btw.git",
+  "branch": "main",
+  "commit": "1b599b2234d8c83002dfb2986bea021167712cfe",
+  "files": [
+    "index.ts",
+    "skills/btw/SKILL.md",
+    "README.md",
+    "docs/btw-overlay.png",
+    "LICENSE"
+  ],
+  "upstreamPath": "extensions/btw.ts",
+  "localPath": "index.ts",
+  "description": "/btw side conversations in a real pi sub-session, with its own overlay, thread state, model/thinking overrides, and thread handoff — plus the bundled btw skill (upstream skills/btw/SKILL.md) and upstream docs/README"
+}

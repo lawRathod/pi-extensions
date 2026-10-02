@@ -19,7 +19,7 @@
               "pattern": "^\\d{1,15}(\\.\\d{1,15})?(\\.\\d{1,15})?$"
             }
           ],
-          "description": "Config schema version, stamped by migrations. Current version: 0.16.2."
+          "description": "Config schema version, stamped by migrations."
         },
         "enabled": {
           "type": "boolean",
@@ -199,6 +199,10 @@
         "onlyIfExists": {
           "type": "boolean",
           "description": "Block only when file exists on disk. Default true."
+        },
+        "respectCwd": {
+          "type": "boolean",
+          "description": "Skip location-anchored patterns (`~`- or `/`-prefixed globs) for targets inside the session's cwd. Basename globs, relative path globs, and regex patterns still apply. Default true."
         },
         "blockMessage": {
           "type": "string",

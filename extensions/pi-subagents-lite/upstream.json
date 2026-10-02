@@ -1,9 +1,11 @@
 {
   "repo": "git@github.com:AlexParamonov/pi-subagents-lite.git",
   "branch": "main",
-  "commit": "e2e52c100ae985f75fc6310337464e90868f8cd2",
+  "commit": "0a9ad2f14562daeec2b5d815fbdf42695f2e7f11",
   "files": [
-    "index.ts"
+    "src/"
   ],
+  "upstreamPath": "src/",
+  "localPath": "./",
   "description": "Sub-agents for pi: spawn custom agents in isolated sessions with own tools, extensions, and model"
 }

@@ -1,7 +1,7 @@
 {
   "repo": "https://github.com/patlux/pi-commandcode-provider.git",
   "branch": "main",
-  "commit": "6fd0ac75345c3fd9c94aa1638c0e00fe963041b8",
+  "commit": "99e2c0ef6b867e1c4c3260b5310860e566429a0a",
   "files": [
     "index.ts",
     "src/"

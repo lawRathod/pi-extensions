@@ -1,7 +1,7 @@
 {
   "repo": "https://github.com/dbachelder/pi-btw.git",
   "branch": "main",
-  "commit": "1b599b2234d8c83002dfb2986bea021167712cfe",
+  "commit": "7313083ccfbfae7836c3d5f2b4672f975194d2b7",
   "files": [
     "index.ts",
     "skills/btw/SKILL.md",

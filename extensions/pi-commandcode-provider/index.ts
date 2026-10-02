@@ -19,7 +19,7 @@ import { join } from "node:path"
 import { getConfiguredApiKey } from "./src/api-key.ts"
 import { pickCommandCodeApiKey, withResolvedCommandCodeApiKey } from "./src/converters.ts"
 import { createStreamCommandCode } from "./src/core.ts"
-import { calculateCommandCodeCost } from "./src/cost.ts"
+import { calculateCommandCodeCost, commandCodeCostRatesAt } from "./src/cost.ts"
 import {
   apiForModelId,
   baseUrlForModel,
@@ -38,6 +38,8 @@ import { normalizeCommandCodeMessage } from "./src/overflow.ts"
 import { MODEL_COSTS, ZERO_MODEL_COST } from "./src/pricing.ts"
 import { registerCommandCodeQuota } from "./src/quota-command.ts"
 import { createCommandCodeRuntime } from "./src/runtime.ts"
+import { createCommandCodeUsageProvider, type UsageProvider } from "./src/usage.ts"
+import { transcriptReadersFrom, withTranscriptPromptAndTools } from "./src/transcript.ts"
 import { createCommandCodeTransportRouter } from "./src/transport.ts"
 
 const COMMAND_CODE_API = "commandcode-custom"
@@ -98,11 +100,20 @@ function commandCodeHeaders(): Record<string, string> | undefined {
   return undefined
 }
 
+/**
+ * The registered config, plus Oh My Pi's extension-only usage hook.
+ *
+ * `usage` is not part of pi's `ProviderConfig`; pi ignores the extra field,
+ * while OMP turns it into the account's usage report. Both use the same
+ * registration call, so the field is attached unconditionally.
+ */
+type CommandCodeProviderConfig = ProviderConfig & { usage?: UsageProvider }
+
 function createProviderConfig(
   models: readonly CommandCodeModel[],
   apiBase: string,
   streamCommandCode: ProviderConfig["streamSimple"],
-): ProviderConfig {
+): CommandCodeProviderConfig {
   const headers = commandCodeHeaders()
   return {
     name: "Command Code",
@@ -111,6 +122,11 @@ function createProviderConfig(
     api: COMMAND_CODE_API,
     streamSimple: streamCommandCode,
     headers,
+    // Same alpha endpoints and credentials as the /commandcode-quota command.
+    usage: createCommandCodeUsageProvider({
+      apiBase: legacyApiBase(apiBase),
+      headers,
+    }),
     oauth: {
       name: "Command Code",
       login,
@@ -174,16 +190,29 @@ export default async function (pi: ExtensionAPI) {
   })
   const resolveStreamOptions = (options?: Parameters<typeof streamNativeProvider>[2]) =>
     withResolvedCommandCodeApiKey(options, getConfiguredApiKey())
+  // The provider transport delegates to pi-ai, which reads the transcript
+  // itself. The generate transport builds its own request body and needs the
+  // flat prompt and tool fields that pi 0.86+ no longer passes.
+  const transcriptReaders = transcriptReadersFrom(piAiCompat)
   const transport = createCommandCodeTransportRouter({
     createStream: () => new AssistantMessageEventStream(),
     streamProvider: (model, context, options) =>
       streamNativeProvider(
-        { ...model, api: apiForModelId(model.id), compat: model.compatConfig ?? model.compat },
+        {
+          ...model,
+          api: apiForModelId(model.id),
+          cost: commandCodeCostRatesAt(model.id, model.cost),
+          compat: model.compatConfig ?? model.compat,
+        },
         context,
         resolveStreamOptions(options),
       ),
     streamGenerate: (model, context, options) =>
-      streamGenerate(model, context, resolveStreamOptions(options)),
+      streamGenerate(
+        model,
+        withTranscriptPromptAndTools(context, transcriptReaders),
+        resolveStreamOptions(options),
+      ),
   })
 
   // pi dispatches the main chat through the registered provider, but sibling

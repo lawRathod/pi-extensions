@@ -1,7 +1,7 @@
 {
   "repo": "https://github.com/nicobailon/pi-web-access",
   "branch": "main",
-  "commit": "6c5afa1d0d43eef8552284ad73f4bd9f0612a378",
+  "commit": "72c6e67787d67d8a7d01bf0abf30c072a6112de6",
   "files": [
     "*.ts",
     "package.json",

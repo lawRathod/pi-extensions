@@ -305,6 +305,9 @@ export function startCuratorServer(
 		if (provider === "serpbase") return availableProviders.serpbase;
 		if (provider === "serper") return availableProviders.serper;
 		if (provider === "serply") return availableProviders.serply;
+		if (provider === "you") return availableProviders.you;
+		if (provider === "baizhi") return availableProviders.baizhi;
+		if (provider === "zai") return availableProviders.zai;
 		if (provider === "valyu") return availableProviders.valyu;
 		return false;
 	}

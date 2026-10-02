@@ -180,17 +180,6 @@ than missing extensions.
   (no postinstall). No `eval`/`vm`, no obfuscation, no prompt
   interception. Source: <https://github.com/nicobailon/pi-web-access>
   (commit `1584928`, v0.24.0, MIT). Reviewed: 2026-08-21.
-- `pi-mcp-adapter/` — MCP adapter for Pi: single `mcp` proxy tool
-  (~200 tokens) replaces verbose per-server definitions, lazy server
-  start with metadata caching, on-demand browser OAuth (`/mcp`,
-  `/mcp-auth`), stdio/HTTP/Unix-socket transports, bundled `mcpScript`
-  worker (isolated `vm` context) and `mcp-scripting` skill. No
-  exfiltration beyond the MCP servers you configure; `child_process`
-  (`spawn`/`spawnSync`) and OAuth callback only for those servers;
-  `vm` (codeGeneration: no strings/wasm) plus `fetch`/WebSocket only
-  through `@modelcontextprotocol/client`. Source:
-  <https://github.com/nicobailon/pi-mcp-adapter> (commit `a3072f6`,
-  v2.27.0, MIT). Reviewed: 2026-08-21.
 - `pi-subagents-lite/` — Sub-agents for pi: spawn custom agents in
   isolated sessions with own tools, extensions, and model. Three
   tools (`Agent`, `StopAgent`, `AgentStatus`) with minimal token

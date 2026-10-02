@@ -5,7 +5,7 @@ import { activityMonitor } from "./activity.ts";
 import { normalizeDomain } from "./domain-filter-normalization.ts";
 import type { SearchOptions, SearchResponse, SearchResult } from "./perplexity.ts";
 import { hasCredentialSource, redactCredential, resolveCredential } from "./credential-source.ts";
-import { getWebSearchConfigPath } from "./utils.ts";
+import { fetchWithCredentialRedirects, getWebSearchConfigPath } from "./utils.ts";
 
 const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 const CODEX_RESPONSES_URL = "https://chatgpt.com/backend-api/codex/responses";
@@ -13,13 +13,16 @@ const CONFIG_PATH = getWebSearchConfigPath();
 const SEARCH_TIMEOUT_MS = 60_000;
 
 // The selected model runs the server-side web_search call and writes the cited summary.
-// Prefer the newest mid-tier ("terra") model, then the newest bare mainline id; price
+// Prefer the newest mid-tier ("terra") model, then the newest bare mainline id, then any
+// other versioned GPT id (gateway providers such as opencode-go list only suffixed GPT
+// ids next to non-OpenAI models; unversioned ids such as gpt-oss-* are skipped); price
 // tiers ("pro"/"ultra" id segments) are excluded, and the numeric-aware sort keeps
 // e.g. gpt-5.10 ahead of gpt-5.9.
 const EXCLUDED_MODEL_SEGMENTS = new Set(["pro", "ultra"]);
 const MODEL_PREFERENCE = [
 	(id: string) => id.includes("terra"),
 	(id: string) => /^gpt-\d+(\.\d+)?$/.test(id),
+	(id: string) => /^gpt-\d/.test(id),
 ];
 const DEFAULT_SEARCH_PROVIDERS: readonly string[] = ["openai-codex", "openai"];
 
@@ -86,6 +89,14 @@ function resolveCurrentModelSearchTarget(model: CurrentModel): CurrentModelSearc
 	}
 
 	throw new Error("Current model is not backed by an official OpenAI Responses endpoint");
+}
+
+// The active model draws on a ChatGPT subscription: openai-codex, or openai signed in
+// through Pi's "Sign in with ChatGPT" OAuth rather than an API key.
+export function isOpenAISubscriptionModelSelected(ctx?: Pick<ExtensionContext, "model"> & { modelRegistry?: Pick<ExtensionContext["modelRegistry"], "isUsingOAuth"> }): boolean {
+	const model = ctx?.model;
+	if (model?.provider === "openai-codex") return true;
+	return model?.provider === "openai" && ctx?.modelRegistry?.isUsingOAuth?.(model) === true;
 }
 
 export function isCurrentModelHostedSearchEligible(ctx?: Pick<ExtensionContext, "model">): boolean {
@@ -160,6 +171,15 @@ function isCodexJwt(token: string): boolean {
 	return !!payload?.["https://api.openai.com/auth"];
 }
 
+function isOfficialOpenAIBaseUrl(baseUrl: string | undefined): boolean {
+	if (baseUrl === undefined) return false;
+	try {
+		return new URL(baseUrl).toString().replace(/\/+$/u, "") === "https://api.openai.com/v1";
+	} catch {
+		return false;
+	}
+}
+
 function extractAccountId(token: string): string | undefined {
 	const payload = decodeJwtPayload(token);
 	const auth = payload?.["https://api.openai.com/auth"];
@@ -182,6 +202,9 @@ function resolveConfiguredResponsesUrl(value: unknown): string {
 	if (url.protocol !== "https:" && url.protocol !== "http:") {
 		throw new Error(`openaiResponsesUrl in ${CONFIG_PATH} must use http or https`);
 	}
+	if (url.hostname === "opencode.ai" && url.protocol !== "https:") {
+		throw new Error(`openaiResponsesUrl in ${CONFIG_PATH} must use HTTPS for opencode.ai`);
+	}
 	return url.toString();
 }
 
@@ -203,6 +226,9 @@ function resolveProviderResponsesUrl(baseUrl: unknown, useCodexEndpoint: boolean
 		if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error();
 	} catch {
 		throw new CustomOpenAIBaseUrlError("OpenAI search configuration: openaiUseProviderBaseUrl requires an absolute http(s) provider baseUrl");
+	}
+	if (url.hostname === "opencode.ai" && url.protocol !== "https:") {
+		throw new CustomOpenAIBaseUrlError("OpenAI search configuration: opencode.ai provider baseUrl must use HTTPS");
 	}
 	const path = url.pathname.replace(/\/+$/u, "");
 	if (path.endsWith("/responses")) {
@@ -239,6 +265,19 @@ function toRequestHeaders(headers: ProviderHeaders): Record<string, string> {
 	return requestHeaders;
 }
 
+function applyOpenCodeDestinationHeaders(headers: HeadersInit, requestUrl: string, ctx?: Pick<ExtensionContext, "sessionManager">): Headers {
+	const requestHeaders = new Headers(headers);
+	requestHeaders.delete("x-opencode-session");
+	requestHeaders.delete("x-opencode-client");
+	const url = new URL(requestUrl);
+	const sessionId = ctx?.sessionManager?.getSessionId?.();
+	if (url.protocol === "https:" && url.hostname === "opencode.ai" && sessionId) {
+		requestHeaders.set("x-opencode-session", sessionId);
+		requestHeaders.set("x-opencode-client", "pi");
+	}
+	return requestHeaders;
+}
+
 async function resolvePiAuth(ctx: ExtensionContext, responsesUrl: string, providers: readonly string[], modelOverride?: string, hasExplicitResponsesUrl = false, useProviderBaseUrl = false): Promise<OpenAIAuth | undefined> {
 	let models: ReturnType<typeof ctx.modelRegistry.getAll>;
 	let invalidProviderUrlError: CustomOpenAIBaseUrlError | undefined;
@@ -260,16 +299,12 @@ async function resolvePiAuth(ctx: ExtensionContext, responsesUrl: string, provid
 		// Auth can override the model's base URL. Do not guess Responses/web_search
 		// support from a gateway URL, or pair its credential with the official API.
 		const baseUrl = resolved.baseUrl ?? preferred.baseUrl;
-		const useCodexEndpoint = provider === "openai-codex" || isCodexJwt(resolved.apiKey);
-		if (!hasExplicitResponsesUrl && !useProviderBaseUrl && !useCodexEndpoint && baseUrl !== undefined) {
-			let isOfficial = false;
-			try {
-				isOfficial = new URL(baseUrl).toString().replace(/\/+$/u, "") === "https://api.openai.com/v1";
-			} catch {
-			}
-			if (!isOfficial) {
-				throw new CustomOpenAIBaseUrlError(`OpenAI web search cannot reuse Pi credentials with a custom baseUrl by default. Set openaiResponsesUrl in ${CONFIG_PATH} to the full Responses endpoint for this credential.`);
-			}
+		const isOfficialBaseUrl = isOfficialOpenAIBaseUrl(baseUrl);
+		// Pi sends credentials for the official API base directly to api.openai.com, including
+		// "Sign in with ChatGPT" access tokens, which are ChatGPT JWTs but not Codex credentials.
+		const useCodexEndpoint = provider === "openai-codex" || (!isOfficialBaseUrl && isCodexJwt(resolved.apiKey));
+		if (!hasExplicitResponsesUrl && !useProviderBaseUrl && !useCodexEndpoint && baseUrl !== undefined && !isOfficialBaseUrl) {
+			throw new CustomOpenAIBaseUrlError(`OpenAI web search cannot reuse Pi credentials with a custom baseUrl by default. Set openaiResponsesUrl in ${CONFIG_PATH} to the full Responses endpoint for this credential.`);
 		}
 		let providerResponsesUrl = responsesUrl;
 		if (useProviderBaseUrl) {
@@ -287,6 +322,7 @@ async function resolvePiAuth(ctx: ExtensionContext, responsesUrl: string, provid
 			model: modelOverride ?? preferred.id,
 			headers: resolved.headers ?? {},
 			responsesUrl: providerResponsesUrl,
+			useCodexEndpoint,
 			...(useProviderBaseUrl ? { useProviderBaseUrl: true } : {}),
 		};
 	}
@@ -643,6 +679,7 @@ async function runOpenAISearch(
 	query: string,
 	options: SearchOptions,
 	auth: OpenAIAuth,
+	ctx?: Pick<ExtensionContext, "sessionManager">,
 ): Promise<SearchResponse> {
 	const useAlphaSearch = isAlphaSearchEnabled();
 	if (useAlphaSearch) options.signal?.throwIfAborted();
@@ -672,16 +709,21 @@ async function runOpenAISearch(
 		if (accountId) headers["chatgpt-account-id"] = accountId;
 		headers.originator = "pi";
 	}
+	const requestHeaders = applyOpenCodeDestinationHeaders(
+		useAlphaSearch ? buildAlphaSearchHeaders(headers, auth.apiKey) : headers,
+		requestUrl,
+		ctx,
+	);
 
 	try {
-		const response = await fetch(requestUrl, {
+		const response = await fetchWithCredentialRedirects(requestUrl, {
 			method: "POST",
-			headers: useAlphaSearch ? buildAlphaSearchHeaders(headers, auth.apiKey) : headers,
+			headers: requestHeaders,
 			body: JSON.stringify(body),
 			signal: options.signal
 				? AbortSignal.any([AbortSignal.timeout(SEARCH_TIMEOUT_MS), options.signal])
 				: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
-		});
+		}, ["Authorization", "x-opencode-session", "x-opencode-client", "chatgpt-account-id", ...Object.keys(auth.headers)]);
 
 		if (!response.ok) {
 			activityMonitor.logError(activityId, `HTTP ${response.status}`);
@@ -738,7 +780,7 @@ export async function searchWithOpenAI(
 			"  3. Set OPENAI_API_KEY environment variable",
 		);
 	}
-	return runOpenAISearch(query, options, auth);
+	return runOpenAISearch(query, options, auth, ctx);
 }
 
 export async function searchWithCurrentModelOpenAI(
@@ -748,5 +790,5 @@ export async function searchWithCurrentModelOpenAI(
 ): Promise<SearchResponse> {
 	if (!ctx) throw new Error("OpenAI current-model search requires an extension context");
 	const auth = await resolveCurrentModelAuth(ctx, options.signal);
-	return runOpenAISearch(query, options, auth);
+	return runOpenAISearch(query, options, auth, ctx);
 }
